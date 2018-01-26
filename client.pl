@@ -73,7 +73,9 @@ sub listener {
             print $sock $cmds;
             my $cols = `tput cols`;
             my $lines = ceil(length($cmds) / $cols);
-            print "\x1b[F \x1b[2K\r" x $lines; # \x1b[F = go 1 line up, \x1b[2K clears that line, do this for the amount of lines writing the message took
+            print "\x1b[F \x1b[2K\r" x $lines; 
+                # \x1b[F = go 1 line up, \x1b[2K clears that line, 
+                # do this for the amount of lines writing the message took
             print "\001\r" . color('reset red') . "\002[$user]" . color('reset') . " " . $cmds;
             $term->forced_update_display;
             $cmds = "";
