@@ -30,6 +30,49 @@ if(!-d "data/users") {
     make_path("data/users");
 }
 
+if(!-d "data/rooms") {
+    make_path("data/rooms");
+}
+
+sub load_json {
+    my ($json, $path) = @_;
+    my $json_str = do {
+        open(my $json_fh, "<:encoding(UTF-8)", $path);
+        local $/;
+        <$json_fh>
+    };
+    my $data = $json->decode($json_str);
+    return %$data;
+}
+
+sub move {
+    my ($id, $user, $direction) = @_;
+
+    my $json = JSON->new;
+    $json->allow_nonref->utf8;
+    my %user_json = load_json($json, "data/users/$user.json");
+    my $location = $user_json{location};
+    my %room = load_json($json, "data/rooms/$location.json");
+    if (exists($room{$direction})) {
+        #this is a valid $direction, move there
+        say "$user moved $direction";
+        $user_json{location} = $room{$direction};
+        my $content = $json->encode(\%user_json);
+        my $f = File::Util->new;
+        
+        $f->write_file(
+            'file' => "data/users/$user.json",
+            'content' => $content,
+            'bitmask' => 0644
+        );
+        $location = $user_json{location};
+        my %new_room = load_json($json, "data/rooms/$location.json");
+        $open[$id]->send("moved to " . $new_room{name} . "\n");
+    } else {
+        say "$user tried to move";
+        $open[$id]->send("you can't move there\n");
+    }
+}
  
 sub broadcast {
     my ($id, $message) = @_;
@@ -49,8 +92,9 @@ sub login {
     threads->new(
         sub {
             while (1) {
-                my $f = File::Util->new();
+                my $f = File::Util->new;
                 $conn->recv(my $auth_str, 1024, 0);
+                $auth_str = unpack('A*', $auth_str);
                 my @auth = split / /, $auth_str;
                 if(scalar(@auth) != 3) {
                     $conn->send("please login with \"login user password\"");
@@ -67,13 +111,8 @@ sub login {
                 $json->allow_nonref->utf8;
                 my $authenticated = 0;
                 if (-f $path) { #user.json exists
-                    my $json_str = do {
-                        open(my $json_fh, "<:encoding(UTF-8)", $path);
-                        local $/;
-                        <$json_fh>
-                    };
-                    my $data = $json->decode($json_str);
-                    my %j_data = %$data;
+                    my %j_data = load_json($json, $path);
+
                     if ($hash eq $j_data{pass}) {
                         say $name . " login success";
                         $authenticated = 1;
@@ -100,8 +139,12 @@ sub login {
                 next if !$authenticated;
                 $users{$id} = $name;
                 broadcast($id, "+++ $name arrived +++");
-                $conn->send("success");
-                $conn->send($motd . "\n");
+                my %user_json = load_json($json, "data/users/$name.json");
+                my $location  = $user_json{location};
+                my %user_room = load_json($json, "data/rooms/$location.json");
+                $conn->send("success".
+                $motd . "\n\n\n".
+                "you are currently in " . $user_room{name} . ".");
                 last;
             }
         }
@@ -154,8 +197,7 @@ while (1) {
                     #command
                     my @command = split / /, substr($message, 1);
                     switch ($command[0]) {
-                        case "mov" {say $users{$i} . " wants to move"}
-                    
+                        case "mov" { move($i, $users{$i}, $command[1]) }
                     }
                 } else { 
                     #global (for now) chat
