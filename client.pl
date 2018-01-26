@@ -26,6 +26,24 @@ my $listener = new threads( \&listener );
 $listener->join;
 
 exit;
+
+sub send_str {
+    my ($socket, $str) = @_;
+    my $pack = pack("L A*", length($str), $str);
+    $socket->send($pack);
+}
+
+sub recv_str {
+    my ($sock) = @_;
+    my $buf = undef;
+    recv($sock, $buf, 4, 0);
+    if ($buf) {
+        my $len = unpack("L", $buf);
+        recv($sock, $buf, $len, 0);
+        return unpack("A*", $buf);
+    }
+}
+
 sub sender {
     while( defined(my $line = $term->readline($prompt)) ) {
         lock $cmds;
@@ -44,32 +62,17 @@ sub listener {
     $sele->add( $sock );
     print $sock "login $user " . @ARGV[0];
 
-    my $buf = undef;
-    recv($sock, $buf, 4, 0);
-    if ($buf) {
-        my $len = unpack("L", $buf);
-        say $len;
-        recv($sock, $buf, $len, 0);
+    my $str = recv_str($sock);
+    if (substr($str, 0, 7) ne "success") {
+        say "\x1b[2K\r" . color('red') . "fatal login error: " . $str . "\n" . color('reset');
+        $done = 1;
+        return;
     }
-    if ($buf) {
-        my $str = unpack("A*", $buf);
-        say ($str);
-        if (substr($str, 0, 7) ne "success") {
-            print "\x1b[2K\r" . color('red') . "fatal login error: " . $str . "\n" . color('reset'); #\x1b[2K = clear line
-            $done = 1;
-            return;
-        }
-    }
-    print "\x1b[2K\r".substr($buf, 0, 7); #\x1b[2K = clear line
+    say "\x1b[2K\r".substr($str, 7);
     $term->forced_update_display;
     while( $sock->connected ) {
         if( $sele->can_read(0.1) ) {
-            my $buf = undef;
-            my $sock_addr = recv( $sock, $buf, 1024, 0 );
-            
-            if( not defined $sock_addr ) {
-                die "socket error";
-            }   
+            my $buf = recv_str($sock);
 
             if( not $buf ) {
                 if( (++ $eb_count) >= 20 ) {
@@ -80,8 +83,8 @@ sub listener {
             }
 
             if( $buf ) {
-                print "\x1b[2K\r".$buf; #\x1b[2K = clear line
-                #$term->set_prompt( $prompt );
+                my $c = () = $buf =~ /\\n/g;
+                say "\x1b[2K\r" x ++$c . $buf; #\x1b[2K = clear line
                 $term->forced_update_display;
                 $eb_count = 0;
             }
@@ -98,8 +101,6 @@ sub listener {
                     # \x1b[F = go 1 line up, \x1b[2K clears that line, 
                     # do this for the amount of lines writing the message took
                 print "\001\r" . color('reset red') . "\002[$user]" . color('reset') . " " . $cmds;
-            } else {
-                print "\x1b[F \x1b[2K\r";
             }
             $term->forced_update_display;
             $cmds = "";

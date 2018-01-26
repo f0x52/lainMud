@@ -17,6 +17,7 @@ use Digest::SHA qw(sha256_hex);
 use File::Path qw(make_path);
 use JSON;
 use Switch;
+use Data::Dumper;
  
 my $HOST = "localhost";
 my $PORT = 4004;
@@ -51,6 +52,18 @@ sub send_str {
     $socket->send($pack);
 }
 
+sub get_location {
+    my ($user) = @_;
+    my $json = JSON->new;
+    $json->allow_nonref->utf8;
+    my %user_json = load_json($json, "data/users/$user.json");
+    my $location = $user_json{location};
+    my %new_room = load_json($json, "data/rooms/$location.json");
+    return $new_room{name} . "\n" .
+           $new_room{desc} . "\n" .
+           "you can go: ( " . join(" ", keys( %{ $new_room{map} } )) . " )\n";
+}
+
 sub move {
     my ($id, $user, $direction) = @_;
 
@@ -59,10 +72,10 @@ sub move {
     my %user_json = load_json($json, "data/users/$user.json");
     my $location = $user_json{location};
     my %room = load_json($json, "data/rooms/$location.json");
-    if (exists($room{$direction})) {
+    if (exists($room{map}{$direction})) {
         #this is a valid $direction, move there
         say "$user moved $direction";
-        $user_json{location} = $room{$direction};
+        $user_json{location} = $room{map}{$direction};
         my $content = $json->encode(\%user_json);
         my $f = File::Util->new;
         
@@ -71,12 +84,10 @@ sub move {
             'content' => $content,
             'bitmask' => 0644
         );
-        $location = $user_json{location};
-        my %new_room = load_json($json, "data/rooms/$location.json");
-        $open[$id]->send("moved to " . $new_room{name} . "\n");
+        send_str($open[$id], get_location($user));
     } else {
         say "$user tried to move";
-        $open[$id]->send("you can't move there\n");
+        send_str($open[$id], "you can't move there\n");
     }
 }
  
@@ -85,7 +96,7 @@ sub broadcast {
     print "$message\n";
     foreach my $i (keys %users) {
         if ($i != $id) {
-            $open[$i]->send("$message\n");
+            send_str($open[$i], "$message\n");
         }
     }
 }
@@ -128,7 +139,7 @@ sub login {
                     }
                 } else {
                     if ($name eq '') {
-                        $conn->send("can't have a blank name");
+                        send_str($conn, "can't have a blank name");
                         next;
                     }
                     my $user_hash = {pass=>$hash, location=>0};
@@ -145,13 +156,7 @@ sub login {
                 next if !$authenticated;
                 $users{$id} = $name;
                 broadcast($id, "+++ $name arrived +++");
-                my %user_json = load_json($json, "data/users/$name.json");
-                my $location  = $user_json{location};
-                my %user_room = load_json($json, "data/rooms/$location.json");
-                send_str($conn, "success".$motd . "\n\n\n"."you are currently in " . $user_room{name} . "very long "x 1000);
-                #$conn->send("success".
-                #$motd . "\n\n\n".
-                #"you are currently in " . $user_room{name} . ".");
+                send_str($conn, "success".$motd . "\n\n".get_location($name));
                 last;
             }
         }
