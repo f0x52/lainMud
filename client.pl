@@ -45,10 +45,17 @@ sub listener {
     print $sock "login $user " . @ARGV[0];
 
     my $buf = undef;
-    recv($sock, $buf, 1024, 0);
+    recv($sock, $buf, 4, 0);
     if ($buf) {
-        if (substr($buf, 0, 7) ne "success") {
-            print "\x1b[2K\r" . color('red') . "fatal login error: " . $buf . "\n" . color('reset'); #\x1b[2K = clear line
+        my $len = unpack("L", $buf);
+        say $len;
+        recv($sock, $buf, $len, 0);
+    }
+    if ($buf) {
+        my $str = unpack("A*", $buf);
+        say ($str);
+        if (substr($str, 0, 7) ne "success") {
+            print "\x1b[2K\r" . color('red') . "fatal login error: " . $str . "\n" . color('reset'); #\x1b[2K = clear line
             $done = 1;
             return;
         }

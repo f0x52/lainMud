@@ -45,6 +45,12 @@ sub load_json {
     return %$data;
 }
 
+sub send_str {
+    my ($socket, $str) = @_;
+    my $pack = pack("L A*", length($str), $str);
+    $socket->send($pack);
+}
+
 sub move {
     my ($id, $user, $direction) = @_;
 
@@ -142,9 +148,10 @@ sub login {
                 my %user_json = load_json($json, "data/users/$name.json");
                 my $location  = $user_json{location};
                 my %user_room = load_json($json, "data/rooms/$location.json");
-                $conn->send("success".
-                $motd . "\n\n\n".
-                "you are currently in " . $user_room{name} . ".");
+                send_str($conn, "success".$motd . "\n\n\n"."you are currently in " . $user_room{name} . "very long "x 1000);
+                #$conn->send("success".
+                #$motd . "\n\n\n".
+                #"you are currently in " . $user_room{name} . ".");
                 last;
             }
         }
