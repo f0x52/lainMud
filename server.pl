@@ -16,6 +16,7 @@ use File::Util;
 use Digest::SHA qw(sha256_hex);
 use File::Path qw(make_path);
 use JSON;
+use Switch;
  
 my $HOST = "localhost";
 my $PORT = 4004;
@@ -149,7 +150,17 @@ while (1) {
         if (defined($message)) {
             if ($message ne '') {
                 $message = unpack('A*', $message);
-                broadcast($i, color('reset blue') . "[$users{$i}] " . color('reset') . $message);
+                if (substr($message, 0, 1) eq '/') {
+                    #command
+                    my @command = split / /, substr($message, 1);
+                    switch ($command[0]) {
+                        case "mov" {say $users{$i} . " wants to move"}
+                    
+                    }
+                } else { 
+                    #global (for now) chat
+                    broadcast($i, color('reset blue') . "[$users{$i}] " . color('reset') . $message);
+                }
             }
             else {
                 broadcast($i, "--- $users{$i} leaves ---");
