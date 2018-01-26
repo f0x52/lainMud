@@ -3,6 +3,7 @@
 use 5.010;
 use strict;
 use warnings;
+use autodie;
  
 use threads;
 use threads::shared;
@@ -13,6 +14,7 @@ use Time::HiRes qw(sleep ualarm);
 use Term::ANSIColor;
 use File::Util;
 use Digest::SHA qw(sha256_hex);
+use File::Path qw(make_path);
 use JSON;
  
 my $HOST = "localhost";
@@ -22,6 +24,11 @@ my $motd = "Welcome to lainMud\nhere are some rules\nand enjoy your stay!";
  
 my @open;
 my %users : shared;
+
+if(!-d "data/users") {
+    make_path("data/users");
+}
+
  
 sub broadcast {
     my ($id, $message) = @_;
@@ -56,27 +63,45 @@ sub login {
                 my $path = "data/users/" . $f->escape_filename($name) . ".json";
 
                 my $json = JSON->new;
+                $json->allow_nonref->utf8;
+                my $authenticated = 0;
                 if (-f $path) { #user.json exists
-                    my $json_str = $f->load_file($path);
-                    my $userdata = $json->decode(<$json_str>);
-                    say $userdata;
+                    my $json_str = do {
+                        open(my $json_fh, "<:encoding(UTF-8)", $path);
+                        local $/;
+                        <$json_fh>
+                    };
+                    my $data = $json->decode($json_str);
+                    my %j_data = %$data;
+                    if ($hash eq $j_data{pass}) {
+                        say $name . " login success";
+                        $authenticated = 1;
+                    } else {
+                        $conn->send("wrong password");
+                        next;
+                    }
                 } else {
-                    my $user_hash = {user=>$name, pass=>$hash};
+                    if ($name eq '') {
+                        $conn->send("can't have a blank name");
+                        next;
+                    }
+                    my $user_hash = {pass=>$hash, location=>0};
                     my $object = $json->encode($user_hash);
-                    say $json;
-                }
 
- 
-                if (exists $users{$name}) {
-                    $conn->send("Name entered is already in use.\n");
+                    $f->write_file(
+                        'file' => $path,
+                        'content' => $object,
+                        'bitmask' => 0644
+                    );
+                    $authenticated = 1;
                 }
-                elsif ($name ne '') {
-                    $users{$id} = $name;
-                    broadcast($id, "+++ $name arrived +++");
-                    $conn->send("success\n");
-                    $conn->send($motd . "\n");
-                    last;
-                }
+                
+                next if !$authenticated;
+                $users{$id} = $name;
+                broadcast($id, "+++ $name arrived +++");
+                $conn->send("success");
+                $conn->send($motd . "\n");
+                last;
             }
         }
     );
@@ -123,7 +148,7 @@ while (1) {
  
         if (defined($message)) {
             if ($message ne '') {
-                #$message = unpack('A*', $message);
+                $message = unpack('A*', $message);
                 broadcast($i, color('reset blue') . "[$users{$i}] " . color('reset') . $message);
             }
             else {

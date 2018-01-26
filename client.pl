@@ -42,26 +42,19 @@ sub listener {
     my $eb_count = 0;
     
     $sele->add( $sock );
-    print $sock "login $user very_secure_password";
+    print $sock "login $user " . @ARGV[0];
 
     my $buf = undef;
     recv($sock, $buf, 1024, 0);
     if ($buf) {
-        if ($buf ne "success\n") {
+        if (substr($buf, 0, 7) ne "success") {
             print "\x1b[2K\r" . color('red') . "fatal login error: " . $buf . "\n" . color('reset'); #\x1b[2K = clear line
             $done = 1;
             return;
         }
     }
-
-
-
-    $buf = undef;
-    recv($sock, $buf, 1024, 0);
-    if ($buf) {
-        print "\x1b[2K\r".$buf; #\x1b[2K = clear line
-        $term->forced_update_display;
-    }
+    print "\x1b[2K\r".substr($buf, 0, 7); #\x1b[2K = clear line
+    $term->forced_update_display;
     while( $sock->connected ) {
         if( $sele->can_read(0.1) ) {
             my $buf = undef;
