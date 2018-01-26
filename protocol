@@ -1,0 +1,2 @@
+connect
+  - login [user] [pass] -> check data/users/user.json, prompt if user is new

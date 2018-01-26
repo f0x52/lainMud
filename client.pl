@@ -1,5 +1,6 @@
 #!/usr/bin/perl
 
+use 5.010;
 use strict;
 use POSIX;
 use Term::ReadLine;
@@ -41,7 +42,26 @@ sub listener {
     my $eb_count = 0;
     
     $sele->add( $sock );
-    print $sock $user;
+    print $sock "login $user very_secure_password";
+
+    my $buf = undef;
+    recv($sock, $buf, 1024, 0);
+    if ($buf) {
+        if ($buf ne "success\n") {
+            print "\x1b[2K\r" . color('red') . "fatal login error: " . $buf . "\n" . color('reset'); #\x1b[2K = clear line
+            $done = 1;
+            return;
+        }
+    }
+
+
+
+    $buf = undef;
+    recv($sock, $buf, 1024, 0);
+    if ($buf) {
+        print "\x1b[2K\r".$buf; #\x1b[2K = clear line
+        $term->forced_update_display;
+    }
     while( $sock->connected ) {
         if( $sele->can_read(0.1) ) {
             my $buf = undef;
