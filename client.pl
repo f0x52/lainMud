@@ -8,12 +8,15 @@ use Term::ANSIColor;
 require Term::ReadLine::Gnu;
 use IO::Socket;
 use IO::Select;
+use File::Util;
 use threads;
 use threads::shared;
 
 my @pair = (qw(localhost 4004));
 
+my $file   = File::Util->new;
 my $user   = %ENV{'USER'};
+$user      = $file->escape_filename($user); #yes this happens serverside too!
 my $cmds   : shared = "";
 my $prompt : shared = "\001\r" . color('reset bold yellow') . "\002[$user] " . "\001" . color('reset') . "\002";
                       #put \001, \002 around non-printing characters

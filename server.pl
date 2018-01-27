@@ -118,11 +118,11 @@ sub login {
                     next;
                 }
 
-                my $name     = $auth[1];
+                my $user     = $f->escape_filename($auth[1]);
                 my $password = $auth[2];
                 my $hash     = sha256_hex($password);
 
-                my $path = "data/users/" . $f->escape_filename($name) . ".json";
+                my $path = "data/users/" . $user . ".json";
 
                 my $json = JSON->new;
                 $json->allow_nonref->utf8;
@@ -131,14 +131,14 @@ sub login {
                     my %j_data = load_json($json, $path);
 
                     if ($hash eq $j_data{pass}) {
-                        say $name . " login success";
+                        say $user . " login success";
                         $authenticated = 1;
                     } else {
                         $conn->send("wrong password");
                         next;
                     }
                 } else {
-                    if ($name eq '') {
+                    if ($user eq '') {
                         send_str($conn, "can't have a blank name");
                         next;
                     }
@@ -154,9 +154,9 @@ sub login {
                 }
                 
                 next if !$authenticated;
-                $users{$id} = $name;
-                broadcast($id, "+++ $name arrived +++");
-                send_str($conn, "success".$motd . "\n\n".get_location($name));
+                $users{$id} = $user;
+                broadcast($id, "+++ $user arrived +++");
+                send_str($conn, "success".$motd . "\n\n".get_location($user));
                 last;
             }
         }
