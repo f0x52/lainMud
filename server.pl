@@ -209,7 +209,15 @@ while (1) {
                     #command
                     my @command = split / /, substr($message, 1);
                     switch ($command[0]) {
-                        case "mov" { move($i, $users{$i}, $command[1]) }
+                        #case "mov" { move($i, $users{$i}, $command[1]) }
+                        case /^(info|where)$/ { send_str($open[$i], get_location($users{$i})); }
+                    }
+                } elsif (substr($message, 0, 1) eq '.') {
+                    my @command = split / /, substr($message, 1);
+                    my $output = 0; 
+                    foreach (@command) {
+                        move($i, $users{$i}, $_);
+                        $output++;
                     }
                 } else { 
                     #global (for now) chat

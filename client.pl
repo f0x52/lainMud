@@ -12,17 +12,26 @@ use File::Util;
 use threads;
 use threads::shared;
 
+use Data::Dumper;
+
 my @pair = (qw(localhost 4004));
 
-my $file   = File::Util->new;
-my $user   = %ENV{'USER'};
-$user      = $file->escape_filename($user); #yes this happens serverside too!
-my $cmds   : shared = "";
-my $prompt : shared = "\001\r" . color('reset bold yellow') . "\002[$user] " . "\001" . color('reset') . "\002";
-                      #put \001, \002 around non-printing characters
-my $done   : shared = 0;
+my $file    = File::Util->new;
+my $user    = %ENV{'USER'};
+$user       = $file->escape_filename($user); #yes this happens serverside too!
+my $cmds    : shared = "";
+my $prompt  : shared = "\001\r" . color('reset bold yellow') . "\002[$user] " . "\001" . color('reset') . "\002";
+                       #put \001, \002 around non-printing characters
+my $done    : shared = 0;
+my @completions;
 
 my $term     = new Term::ReadLine "lainMud";
+$term->ornaments('me,md,,');
+#my $attribs = $term->Attribs;
+#$attribs->{completion_function} = sub {
+#    my ($text, $line, $start) = @_;
+#    return get_completions();
+#};
 my $listener = new threads( \&listener );
 
 &sender;
@@ -44,6 +53,28 @@ sub recv_str {
         my $len = unpack("L", $buf);
         recv($sock, $buf, $len, 0);
         return unpack("A*", $buf);
+    }
+}
+
+sub parse_directions {
+    my ($str) = @_;
+    my @directions = $str =~ /\( (.+) \)/g;
+    if ( @directions ) {
+        my @completions = split / /, @directions[0];
+        $term->Attribs->{completion_entry_function} = sub {
+            my ($word, $state) = @_;
+            if (substr($word, 0, 1) ne '.') {
+                #TODO: username completion
+                return;
+            }
+
+            $word = substr($word, 1);    
+            my @matches = grep /^\Q$word\E/i, @completions if $state == 0;
+            foreach (@matches) {
+                $_ = '.' . $_;
+            }
+            return shift @matches;
+        };
     }
 }
 
@@ -72,32 +103,36 @@ sub listener {
         return;
     }
     say "\x1b[2K\r".substr($str, 7);
+    parse_directions($str);
     $term->forced_update_display;
-    while( $sock->connected ) {
-        if( $sele->can_read(0.1) ) {
-            my $buf = recv_str($sock);
 
-            if( not $buf ) {
-                if( (++ $eb_count) >= 20 ) {
+    while( $sock->connected ) {
+        if ( $sele->can_read(0.1) ) {
+            my $str = recv_str($sock);
+
+            if ( not $str ) {
+                if ( (++ $eb_count) >= 20 ) {
                     warn "connection terminated\n(return to quit)\n";
                     $done = 1;
                     return;
                 }
             }
 
-            if( $buf ) {
-                my $c = () = $buf =~ /\\n/g;
-                say "\x1b[2K\r" x ++$c . $buf; #\x1b[2K = clear line
-                $term->forced_update_display;
+            if ( $str ) {
+                my $c = () = $str =~ /\\n/g;
+                say "\x1b[2K\r" x ++$c . $str; #\x1b[2K = clear line
                 $eb_count = 0;
+                parse_directions($str);
+                $term->forced_update_display;
             }
 
         }
 
-        if( $cmds ) {
+        if ( $cmds ) {
             lock $cmds;
             print $sock $cmds;
-            if (substr($cmds, 0, 1) ne '/') {
+
+            if (substr($cmds, 0, 1) ne '/' && substr($cmds, 0, 1) ne '.') {
                 my $cols = `tput cols`;
                 my $lines = ceil(length($cmds) / $cols);
                 print "\x1b[F \x1b[2K\r" x $lines; 
