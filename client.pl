@@ -57,7 +57,6 @@ sub parse_directions {
     my ($str) = @_;
     my @directions = $str =~ /\( (.+) \)/g;
     if ( @directions ) {
-        say "parsed directions";
         my @direction_completions = split / /, @directions[0];
         $term->Attribs->{'completion_entry_function'} = sub {
             my ($word, $state) = @_;

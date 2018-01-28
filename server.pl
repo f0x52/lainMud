@@ -16,7 +16,7 @@ use File::Util;
 use Digest::SHA qw(sha256_hex);
 use File::Path qw(make_path);
 use JSON;
-use Switch;
+use Switch::Plain;
 use Data::Dumper;
 
  
@@ -230,10 +230,9 @@ while (1) {
                 if (substr($message, 0, 1) eq '/') {
                     #command
                     my @command = split / /, substr($message, 1);
-                    switch ($command[0]) {
-                        #case "mov" { move($i, $users{$i}, $command[1]) }
-                        case /^(info|where)$/ { send_str($open[$i], get_location($users{$i})); }
-                        case /^(look)$/ { look($i, $users{$i}) }
+                    sswitch ($command[0]) {
+                        case 'info' or 'where' : { send_str($open[$i], get_location($users{$i})); }
+                        case 'look': { look($i, $users{$i}) }
                     }
                 } elsif (substr($message, 0, 1) eq '.') {
                     my @command = split / /, substr($message, 1);
