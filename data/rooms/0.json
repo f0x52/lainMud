@@ -1,1 +1,1 @@
-{"name":"The Living Room", "desc": "A comfy place", "map":{"left":1, "right":2}}
+{"name":"The Living Room", "desc": "A comfy place\nThe kitchen is to the left, and there's a small cupboard to the right", "map":{"left":1, "right":2}, "objects":[]}

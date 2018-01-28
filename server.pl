@@ -18,6 +18,7 @@ use File::Path qw(make_path);
 use JSON;
 use Switch;
 use Data::Dumper;
+
  
 my $HOST = "localhost";
 my $PORT = 4004;
@@ -52,6 +53,18 @@ sub send_str {
     $socket->send($pack);
 }
 
+sub broadcast {
+    my ($id, $message) = @_;
+    print "$message\n";
+    foreach my $i (keys %users) {
+        if ($i != $id) {
+            send_str($open[$i], "$message\n");
+        }
+    }
+}
+
+#moo sub
+
 sub get_location {
     my ($user) = @_;
     my $json = JSON->new;
@@ -59,11 +72,29 @@ sub get_location {
     my %user_json = load_json($json, "data/users/$user.json");
     my $location = $user_json{location};
     my %new_room = load_json($json, "data/rooms/$location.json");
-    return $new_room{name} . "\n" .
+    return color('bold') . $new_room{name} . color('reset') . "\n" .
            $new_room{desc} . "\n" .
            "you can go: ( " . join(" ", keys( %{ $new_room{map} } )) . " )\n";
 }
 
+sub look {
+    my ($id, $user) = @_;
+
+    my $json = JSON->new;
+    $json->allow_nonref->utf8;
+    my %user_json = load_json($json, "data/users/$user.json");
+    my $location = $user_json{location};
+    my %room = load_json($json, "data/rooms/$location.json");
+    my @objects = @{ $room{objects} };
+    my $str = color('bold') . "You see:\n" . color('reset');
+    foreach (@objects) {
+        my %object = load_json($json, "data/objects/$_.json");
+        $str .= $object{name} . "\n";
+        $str .= "  " . $object{desc} . "\n";
+    }
+    send_str($open[$id], $str);
+}
+ 
 sub move {
     my ($id, $user, $direction) = @_;
 
@@ -90,16 +121,7 @@ sub move {
         send_str($open[$id], "you can't move there\n");
     }
 }
- 
-sub broadcast {
-    my ($id, $message) = @_;
-    print "$message\n";
-    foreach my $i (keys %users) {
-        if ($i != $id) {
-            send_str($open[$i], "$message\n");
-        }
-    }
-}
+
  
 sub login {
     my ($conn) = @_;
@@ -211,6 +233,7 @@ while (1) {
                     switch ($command[0]) {
                         #case "mov" { move($i, $users{$i}, $command[1]) }
                         case /^(info|where)$/ { send_str($open[$i], get_location($users{$i})); }
+                        case /^(look)$/ { look($i, $users{$i}) }
                     }
                 } elsif (substr($message, 0, 1) eq '.') {
                     my @command = split / /, substr($message, 1);

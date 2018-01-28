@@ -11,6 +11,7 @@ use IO::Select;
 use File::Util;
 use threads;
 use threads::shared;
+use Switch;
 
 use Data::Dumper;
 
@@ -20,24 +21,48 @@ my $file    = File::Util->new;
 my $user    = %ENV{'USER'};
 $user       = $file->escape_filename($user); #yes this happens serverside too!
 my $cmds    : shared = "";
-my $prompt  : shared = "\001\r" . color('reset bold yellow') . "\002[$user] " . "\001" . color('reset') . "\002";
+my $prompt  : shared = "\001\r" . color('reset bold yellow') . "\002[$user] \001" . color('reset') . "\002";
                        #put \001, \002 around non-printing characters
 my $done    : shared = 0;
-my @completions;
+my @commands = qw(look info where);
+my @direction_completions;
 
 my $term     = new Term::ReadLine "lainMud";
-$term->ornaments('me,md,,');
-#my $attribs = $term->Attribs;
-#$attribs->{completion_function} = sub {
-#    my ($text, $line, $start) = @_;
-#    return get_completions();
-#};
+$term->Attribs->{'completion_entry_function'} = \&completion;
 my $listener = new threads( \&listener );
 
 &sender;
 $listener->join;
 
 exit;
+
+sub completion {
+    my ($word, $state) = @_;
+    switch (substr($word, 0, 1)) {
+        case '/' {
+            #TODO: get this list from the server
+            $word = substr($word, 1);    
+            my @matches = grep /^\Q$word\E/i, @commands if $state == 0;
+            foreach (@matches) {
+                $_ = '/' . $_;
+            }
+            return shift @matches;
+        }
+        case '.' {
+            # never gets here for some reason?
+            $word = substr($word, 1);    
+            my @matches = grep /^\Q$word\E/i, @direction_completions if $state == 0;
+            foreach (@matches) {
+                $_ = '.' . $_;
+            }
+            return shift @matches;
+        }
+        else {
+            #TODO: username completion
+            return qw(aa);
+        }
+    }
+}
 
 sub send_str {
     my ($socket, $str) = @_;
@@ -60,21 +85,8 @@ sub parse_directions {
     my ($str) = @_;
     my @directions = $str =~ /\( (.+) \)/g;
     if ( @directions ) {
-        my @completions = split / /, @directions[0];
-        $term->Attribs->{completion_entry_function} = sub {
-            my ($word, $state) = @_;
-            if (substr($word, 0, 1) ne '.') {
-                #TODO: username completion
-                return;
-            }
-
-            $word = substr($word, 1);    
-            my @matches = grep /^\Q$word\E/i, @completions if $state == 0;
-            foreach (@matches) {
-                $_ = '.' . $_;
-            }
-            return shift @matches;
-        };
+        my @direction_completions = split / /, @directions[0];
+        $term->Attribs->{'completion_entry_function'} = \&completion;
     }
 }
 
@@ -102,7 +114,7 @@ sub listener {
         $done = 1;
         return;
     }
-    say "\x1b[2K\r".substr($str, 7);
+    say "\x1b[2K\r".substr($str, 7).color('reset');
     parse_directions($str);
     $term->forced_update_display;
 
@@ -139,6 +151,10 @@ sub listener {
                     # \x1b[F = go 1 line up, \x1b[2K clears that line, 
                     # do this for the amount of lines writing the message took
                 print "\001\r" . color('reset red') . "\002[$user]" . color('reset') . " " . $cmds;
+            } elsif (substr($cmds, 0, 5) eq '/quit' or substr($cmds, 0, 5) eq '/exit') {
+                say "press enter to return to shell";
+                $done = 1;
+                return;
             }
             $term->forced_update_display;
             $cmds = "";
