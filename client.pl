@@ -11,7 +11,7 @@ use IO::Select;
 use File::Util;
 use threads;
 use threads::shared;
-use Switch;
+use Switch::Plain;
 
 use Data::Dumper;
 
@@ -36,34 +36,6 @@ $listener->join;
 
 exit;
 
-sub completion {
-    my ($word, $state) = @_;
-    switch (substr($word, 0, 1)) {
-        case '/' {
-            #TODO: get this list from the server
-            $word = substr($word, 1);    
-            my @matches = grep /^\Q$word\E/i, @commands if $state == 0;
-            foreach (@matches) {
-                $_ = '/' . $_;
-            }
-            return shift @matches;
-        }
-        case '.' {
-            # never gets here for some reason?
-            $word = substr($word, 1);    
-            my @matches = grep /^\Q$word\E/i, @direction_completions if $state == 0;
-            foreach (@matches) {
-                $_ = '.' . $_;
-            }
-            return shift @matches;
-        }
-        else {
-            #TODO: username completion
-            return qw(aa);
-        }
-    }
-}
-
 sub send_str {
     my ($socket, $str) = @_;
     my $pack = pack("L A*", length($str), $str);
@@ -85,8 +57,34 @@ sub parse_directions {
     my ($str) = @_;
     my @directions = $str =~ /\( (.+) \)/g;
     if ( @directions ) {
+        say "parsed directions";
         my @direction_completions = split / /, @directions[0];
-        $term->Attribs->{'completion_entry_function'} = \&completion;
+        $term->Attribs->{'completion_entry_function'} = sub {
+            my ($word, $state) = @_;
+            sswitch (substr($word, 0, 1)) {
+                case '/': {
+                    #TODO: get this list from the server
+                    $word = substr($word, 1);    
+                    my @matches = grep /^\Q$word\E/i, @commands if $state == 0;
+                    foreach (@matches) {
+                        $_ = '/' . $_;
+                    }
+                    return shift @matches;
+                }
+                case '.': {
+                    $word = substr($word, 1);    
+                    my @matches = grep /^\Q$word\E/i, @direction_completions if $state == 0;
+                    foreach (@matches) {
+                        $_ = '.' . $_;
+                    }
+                    return shift @matches;
+                }
+                default: {
+                    #TODO: username completion
+                    return undef;
+                }
+            }
+        };
     }
 }
 
