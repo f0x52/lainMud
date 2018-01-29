@@ -24,7 +24,7 @@ my $cmds    : shared = "";
 my $prompt  : shared = "\001\r" . color('reset bold yellow') . "\002[$user] \001" . color('reset') . "\002";
                        #put \001, \002 around non-printing characters
 my $done    : shared = 0;
-my @commands = qw(look info where);
+my @commands = qw(look list info where);
 my @direction_completions;
 
 my $term     = new Term::ReadLine "lainMud";

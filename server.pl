@@ -74,17 +74,33 @@ sub get_location {
     my %user_json = load_json($json, "data/users/$user.json");
     my $location = $user_json{location};
     my %new_room = load_json($json, "data/rooms/$location.json");
+
+    my $presence = get_list($user, @{ $new_room{users} });
+
     return color('bold') . $new_room{name} . color('reset') . "\n" .
            $new_room{desc} . "\n" .
            "you can go: ( " . join(" ", keys( %{ $new_room{map} } )) . " )\n" .
-           join(", ", get_online(@{ $new_room{users} })) . " are here\n";
+           $presence;
 
 }
 
+sub get_list {
+    my ($user, @room_users) = @_;
+    my $presence;
+    my @online = get_online($user, @room_users);
+    if (scalar(@online) == 0) {
+        $presence = "$user is here\n";
+    } else {
+        $presence = join(", ", @online) . " and $user are here\n";
+    }
+    return $presence;
+}
+
 sub get_online {
-    my (@users) = @_;
+    my ($user, @users) = @_;
     my @response;
     foreach (@users) {
+        next if $_ eq $user;
         if (exists $ids{$_}) {
             push @response, $_;
         }
@@ -285,35 +301,45 @@ while (1) {
         }
  
         if (defined($message)) {
+            my $user = $users{$i};
             if ($message ne '') {
                 $message = unpack('A*', $message);
                 if (substr($message, 0, 1) eq '/') {
                     #command
                     my @command = split / /, substr($message, 1);
                     sswitch ($command[0]) {
-                        case 'info' or 'where' : { send_str($open[$i], get_location($users{$i})); }
-                        case 'look': { look($i, $users{$i}) }
+                        case 'info' or 'where' : { send_str($open[$i], get_location($user)); }
+                        case 'look': { look($i, $user) }
+                        case 'list': { 
+                                        my $json = JSON->new;
+                                        $json->allow_nonref->utf8;
+                                        my %user_json = load_json($json, "data/users/$user.json");
+                                        my $location = $user_json{location};
+                                        my %room = load_json($json, "data/rooms/$location.json");
+                                        my $presence = get_list($user, @{ $room{users} });
+                                        send_str($open[$i], $presence);
+                                     }
                     }
                 } elsif (substr($message, 0, 1) eq ',') {
                     $message = substr($message, 1);
                     my $json = JSON->new;
                     $json->allow_nonref->utf8;
-                    my %room = load_json($json, "data/users/" . $users{$i} . ".json");
-                    roomtalk($room{location}, $users{$i}, color('reset blue') . "[$users{$i}] " . color('reset') . $message);
+                    my %room = load_json($json, "data/users/" . $user . ".json");
+                    roomtalk($room{location}, $user, color('reset blue') . "[$user] " . color('reset') . $message);
                 } elsif (substr($message, 0, 1) eq '.') {
                     my @command = split / /, substr($message, 1);
                     my $output = 0; 
                     foreach (@command) {
-                        move($i, $users{$i}, $_);
+                        move($i, $user, $_);
                         $output++;
                     }
                 } else { 
-                    #global (for now) chat
-                    broadcast($i, color('reset blue') . "[$users{$i}] " . color('reset') . $message);
+                    #global chat
+                    broadcast($i, color('reset blue') . "[$user] " . color('reset') . $message);
                 }
             }
             else {
-                broadcast($i, "--- $users{$i} leaves ---");
+                broadcast($i, "--- $user leaves ---");
                 delete $users{$i};
                 delete $ids{$i};
                 undef $open[$i];
