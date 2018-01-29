@@ -25,7 +25,8 @@ use threads::shared;
 my $HOST = "localhost";
 my $PORT = 4004;
 
-my $motd = "Welcome to lainMud\nhere are some rules\nand enjoy your stay!";
+my $f = File::Util->new;
+my $motd = $f->load_file('motd.txt');
  
 my @open;
 
