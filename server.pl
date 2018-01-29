@@ -19,6 +19,8 @@ use JSON;
 use Switch::Plain;
 use Data::Dumper;
 
+use threads;
+use threads::shared;
  
 my $HOST = "localhost";
 my $PORT = 4004;
@@ -205,60 +207,63 @@ sub login {
     state $id = 0;
 
     # TODO: better error handling, so server doesn't crash
-    while (1) {
-        my $f = File::Util->new;
-        $conn->recv(my $auth_str, 1024, 0);
-        $auth_str = unpack('A*', $auth_str);
-        my @auth = split / /, $auth_str;
-        if(scalar(@auth) != 3) {
-            $conn->send("please login with \"login user password\"");
-            next;
-        }
+    threads->new(
+    sub {
+        while (1) {
+            my $f = File::Util->new;
+            $conn->recv(my $auth_str, 1024, 0);
+            $auth_str = unpack('A*', $auth_str);
+            my @auth = split / /, $auth_str;
+            if(scalar(@auth) != 3) {
+                $conn->send("please login with \"login user password\"");
+                next;
+            }
 
-        my $user     = $f->escape_filename($auth[1]);
-        my $password = $auth[2];
-        my $hash     = sha256_hex($password);
+            my $user     = $f->escape_filename($auth[1]);
+            my $password = $auth[2];
+            my $hash     = sha256_hex($password);
 
-        my $path = "data/users/" . $user . ".json";
+            my $path = "data/users/" . $user . ".json";
 
-        my $json = JSON->new;
-        $json->allow_nonref->utf8;
-        my $authenticated = 0;
-        if (-f $path) { #user.json exists
-            my %j_data = load_json($json, $path);
+            my $json = JSON->new;
+            $json->allow_nonref->utf8;
+            my $authenticated = 0;
+            if (-f $path) { #user.json exists
+                my %j_data = load_json($json, $path);
 
-            if ($hash eq $j_data{pass}) {
-                say $user . " login success";
-                $authenticated = 1;
+                if ($hash eq $j_data{pass}) {
+                    say $user . " login success";
+                    $authenticated = 1;
+                } else {
+                    $conn->send("wrong password");
+                    next;
+                }
             } else {
-                $conn->send("wrong password");
-                next;
-            }
-        } else {
-            if ($user eq '') {
-                send_str($conn, "can't have a blank name");
-                next;
-            }
-            my $user_hash = {pass=>$hash, location=>0};
-            my $object = $json->encode($user_hash);
+                if ($user eq '') {
+                    send_str($conn, "can't have a blank name");
+                    next;
+                }
+                my $user_hash = {pass=>$hash, location=>0};
+                my $object = $json->encode($user_hash);
 
-            $f->write_file(
-                'file' => $path,
-                'content' => $object,
-                'bitmask' => 0644
-            );
-            say $user . " register success";
-            $authenticated = 1;
+                $f->write_file(
+                    'file' => $path,
+                    'content' => $object,
+                    'bitmask' => 0644
+                );
+                say $user . " register success";
+                $authenticated = 1;
+            }
+            
+            next if !$authenticated;
+            $users{$id} = $user;
+            $ids{$user} = $id;
+            broadcast($id, "+++ $user arrived +++");
+
+            send_str($conn, "success".$motd . "\n\n".get_location($user));
+            last;
         }
-        
-        next if !$authenticated;
-        $users{$id} = $user;
-        $ids{$user} = $id;
-        broadcast($id, "+++ $user arrived +++");
-
-        send_str($conn, "success".$motd . "\n\n".get_location($user));
-        last;
-    }
+    });
     ++$id;
     push @open, $conn;
 }
