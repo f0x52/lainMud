@@ -5,3 +5,9 @@ design:
   each room has a json with info about it
   host on server, connect using ssh, client.pl runs in screen/tmux
 
+# installation
+
+```perl -MCPAN -e shell
+install Term::ANSIColor File::Util Digest::SHA Switch::Plain Data::Dumper JSON
+
+sudo aptitude install libterm-readline-gnu-perl```

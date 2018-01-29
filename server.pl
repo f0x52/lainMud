@@ -308,7 +308,7 @@ while (1) {
                     #command
                     my @command = split / /, substr($message, 1);
                     sswitch ($command[0]) {
-                        case 'info' or 'where' : { send_str($open[$i], get_location($user)); }
+                        case 'info': { send_str($open[$i], get_location($user)); }
                         case 'look': { look($i, $user) }
                         case 'list': { 
                                         my $json = JSON->new;
@@ -325,7 +325,7 @@ while (1) {
                     my $json = JSON->new;
                     $json->allow_nonref->utf8;
                     my %room = load_json($json, "data/users/" . $user . ".json");
-                    roomtalk($room{location}, $user, color('reset blue') . "[$user] " . color('reset') . $message);
+                    roomtalk($room{location}, $user, "[$user] $message");
                 } elsif (substr($message, 0, 1) eq '.') {
                     my @command = split / /, substr($message, 1);
                     my $output = 0; 

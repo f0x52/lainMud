@@ -24,8 +24,10 @@ my $cmds    : shared = "";
 my $prompt  : shared = "\001\r" . color('reset bold yellow') . "\002[$user] \001" . color('reset') . "\002";
                        #put \001, \002 around non-printing characters
 my $done    : shared = 0;
-my @commands = qw(look list info where);
+my @commands = qw(look list info);
+my @colors   = qw(blue magenta yellow red green cyan);
 my @direction_completions;
+my %nick_colors;
 
 my $term     = new Term::ReadLine "lainMud";
 $term->Attribs->{'completion_entry_function'} = \&completion;
@@ -87,6 +89,13 @@ sub parse_directions {
     }
 }
 
+sub nick_color {
+    my ($user) = @_;
+    return %nick_colors{$user} if exists $nick_colors{$user};
+    $nick_colors{$user} = $colors[int(rand(5))];
+    return %nick_colors{$user};
+}
+
 sub sender {
     while( defined(my $line = $term->readline($prompt)) ) {
         lock $cmds;
@@ -130,8 +139,7 @@ sub listener {
             if ( $str ) {
                 if ($str =~ /^\[.+\]/) {
                     my @sender = $str =~ /^\[(.+)\]/;
-                    #my $color = $colors{@sender[0]};
-                    my $color = 'blue';
+                    my $color = nick_color(@sender[0]);
                     if ($str =~ /(?:^|\s|[^a-z\d]) $user (?:[^a-z\d]|\s|$)/gix) {
                         $color = 'yellow on_magenta';
                     } 
@@ -158,7 +166,7 @@ sub listener {
                 print "\x1b[F \x1b[2K\r" x $lines; 
                     # \x1b[F = go 1 line up, \x1b[2K clears that line, 
                     # do this for the amount of lines writing the message took
-                print "\001\r" . color('reset red') . "\002[$user]" . color('reset') . " " . $cmds;
+                print "\001\r" . color('reset yellow') . "\002[$user]" . color('reset') . " " . $cmds;
             } elsif (substr($cmds, 0, 5) eq '/quit' or substr($cmds, 0, 5) eq '/exit') {
                 say "press enter to return to shell";
                 $done = 1;
