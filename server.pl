@@ -335,7 +335,7 @@ while (1) {
                     }
                 } else { 
                     #global chat
-                    broadcast($i, color('reset blue') . "[$user] " . color('reset') . $message);
+                    broadcast($i, "[$user] $message");
                 }
             }
             else {

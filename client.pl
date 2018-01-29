@@ -128,6 +128,17 @@ sub listener {
             }
 
             if ( $str ) {
+                if ($str =~ /^\[.+\]/) {
+                    my @sender = $str =~ /^\[(.+)\]/;
+                    #my $color = $colors{@sender[0]};
+                    my $color = 'blue';
+                    if ($str =~ /(?:^|\s|[^a-z\d]) $user (?:[^a-z\d]|\s|$)/gix) {
+                        $color = 'yellow on_magenta';
+                    } 
+                    $str =~ s/\[.+\]//;
+                    $str = color($color) . "[" . $sender[0] . "]" . color('reset') . $str;
+                }
+
                 my $c = () = $str =~ /\\n/g;
                 say "\x1b[2K\r" x ++$c . $str; #\x1b[2K = clear line
                 $eb_count = 0;
