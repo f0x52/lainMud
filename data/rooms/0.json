@@ -1,1 +1,1 @@
-{"users":["b","f0x","a","c","not_f0x"],"map":{"left":1,"right":2},"desc":"A comfy place\nThe kitchen is to the left, and there's a small cupboard to the right","name":"The Living Room","objects":[]}
+{"objects":[],"name":"The Living Room","desc":"A comfy place\nThe kitchen is to the left, and there's a small cupboard to the right","users":["b","a","c","not_f0x"],"map":{"right":2,"left":1}}

@@ -76,7 +76,20 @@ sub get_location {
     my %new_room = load_json($json, "data/rooms/$location.json");
     return color('bold') . $new_room{name} . color('reset') . "\n" .
            $new_room{desc} . "\n" .
-           "you can go: ( " . join(" ", keys( %{ $new_room{map} } )) . " )\n";
+           "you can go: ( " . join(" ", keys( %{ $new_room{map} } )) . " )\n" .
+           join(", ", get_online(@{ $new_room{users} })) . " are here\n";
+
+}
+
+sub get_online {
+    my (@users) = @_;
+    my @response;
+    foreach (@users) {
+        if (exists $ids{$_}) {
+            push @response, $_;
+        }
+    }
+    return @response;
 }
 
 sub look {
@@ -302,6 +315,7 @@ while (1) {
             else {
                 broadcast($i, "--- $users{$i} leaves ---");
                 delete $users{$i};
+                delete $ids{$i};
                 undef $open[$i];
             }
         }
