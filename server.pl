@@ -65,7 +65,7 @@ sub broadcast {
     }
 }
 
-#moo sub
+#moo subs
 
 sub get_location {
     my ($user) = @_;
