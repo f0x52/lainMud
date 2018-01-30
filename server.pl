@@ -247,6 +247,30 @@ sub dig {
     send_str($open[$i], "Room created at #$room_count");
 }
 
+sub new {
+    my ($i, $user) = @_;
+    my $object_count = $f->load_file("data/objects/object_count");
+    $object_count++;
+    $object_count++ while (-f "data/objects/$object_count.json");
+    
+    #because doing empty arrays/hashes is a pain
+    my $new_object = '{"desc":"doesnt do much", "name":"a brand new object"}';
+
+    $f->write_file(
+        'file' => "data/objects/$object_count.json",
+        'content' => $new_object,
+        'bitmask' => 0644
+    );
+
+    $f->write_file(
+        'file' => "data/objects/object_count",
+        'content' => $object_count,
+        'bitmask' => 0644
+    );
+    say "NEW: $user created $object_count";
+    send_str($open[$i], "created object #$object_count");
+}
+
 sub edit_room {
     my ($user, @command) = @_;
     shift @command;
@@ -317,6 +341,40 @@ sub edit_room {
     } else {
         #return option value
         send_str($open[$ids{$user}], Dumper($room_json{$option}));
+    }
+}
+
+sub edit_object {
+    my ($user, @command) = @_;
+    shift @command;
+    if (scalar(@command) < 1) {
+        send_str($open[$ids{$user}], "not enough arguments");
+        return;
+    }
+    my $json = JSON->new;
+    $json->allow_nonref->utf8;
+    my $object = shift @command;
+    my %object_json = load_json($json, "data/objects/$object.json");
+    my $option = shift @command;
+    if (exists $command[0]) {
+        #modify option
+        my $str = join(" ", @command);
+        sswitch ($option) {
+            case 'name': { $object_json{name} = $str }
+            case 'desc': { $object_json{desc} = $str }
+        }
+        my $content = $json->encode(\%object_json);
+        $f->write_file(
+            'file' => "data/objects/$object.json",
+            'content' => $content,
+            'bitmask' => 0644
+        );
+        say("EDIT: $object $option by $user to $command[1]");
+        send_str($open[$ids{$user}], "changed $option for object $object");
+        look($ids{$user}, $user);
+    } else {
+        #return option value
+        send_str($open[$ids{$user}], Dumper($object_json{$option}));
     }
 }
 
@@ -450,7 +508,9 @@ while (1) {
                         case 'look':  { look($i, $user) }
                         case 'tp':    { teleport($i, $user, $command[1]) }
                         case 'dig':   { dig($i, $user) }
+                        case 'new':   { new($i, $user) }
                         case 'edit':  { edit_room($user, @command) }
+                        case 'edit_o':{ edit_object($user, @command) }
                         case 'list':  { 
                                         my $json = JSON->new;
                                         $json->allow_nonref->utf8;
