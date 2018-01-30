@@ -123,6 +123,7 @@ sub look {
         my %object = load_json($json, "data/objects/$objects{$short}.json");
         $str .= $object{name} . " [$short] #$objects{$short}\n";
         $str .= "  " . $object{desc} . "\n";
+        $str .= "  actions: " . join(", ", keys( %{ $object{actions} } )) . "\n";
     }
     send_str($open[$id], $str);
 }
