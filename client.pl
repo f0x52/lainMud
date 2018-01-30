@@ -24,7 +24,7 @@ my $cmds    : shared = "";
 my $prompt  : shared = "\001\r" . color('reset bold yellow') . "\002[$user] \001" . color('reset') . "\002";
                        #put \001, \002 around non-printing characters
 my $done    : shared = 0;
-my @commands = qw(look list info);
+my @commands = qw(look list info dig edit tp);
 my @colors   = qw(blue magenta yellow red green cyan);
 my @direction_completions;
 my %nick_colors;
@@ -58,35 +58,33 @@ sub recv_str {
 sub parse_directions {
     my ($str) = @_;
     my @directions = $str =~ /\( (.+) \)/g;
-    if ( @directions ) {
-        my @direction_completions = split / /, @directions[0];
-        $term->Attribs->{'completion_entry_function'} = sub {
-            my ($word, $state) = @_;
-            sswitch (substr($word, 0, 1)) {
-                case '/': {
-                    #TODO: get this list from the server
-                    $word = substr($word, 1);    
-                    my @matches = grep /^\Q$word\E/i, @commands if $state == 0;
-                    foreach (@matches) {
-                        $_ = '/' . $_;
-                    }
-                    return shift @matches;
+    my @direction_completions = split / /, @directions[0];
+    $term->Attribs->{'completion_entry_function'} = sub {
+        my ($word, $state) = @_;
+        sswitch (substr($word, 0, 1)) {
+            case '/': {
+                #TODO: get this list from the server
+                $word = substr($word, 1);    
+                my @matches = grep /^\Q$word\E/i, @commands if $state == 0;
+                foreach (@matches) {
+                    $_ = '/' . $_;
                 }
-                case '.': {
-                    $word = substr($word, 1);    
-                    my @matches = grep /^\Q$word\E/i, @direction_completions if $state == 0;
-                    foreach (@matches) {
-                        $_ = '.' . $_;
-                    }
-                    return shift @matches;
-                }
-                default: {
-                    #TODO: username completion
-                    return undef;
-                }
+                return shift @matches;
             }
-        };
-    }
+            case '.': {
+                $word = substr($word, 1);    
+                my @matches = grep /^\Q$word\E/i, @direction_completions if $state == 0;
+                foreach (@matches) {
+                    $_ = '.' . $_;
+                }
+                return shift @matches;
+            }
+            default: {
+                #TODO: username completion
+                return undef;
+            }
+        }
+    };
 }
 
 sub nick_color {

@@ -247,6 +247,79 @@ sub dig {
     send_str($open[$i], "Room created at #$room_count");
 }
 
+sub edit_room {
+    my ($user, @command) = @_;
+    shift @command;
+    if (scalar(@command) < 1) {
+        send_str($open[$ids{$user}], "not enough arguments");
+        return;
+    }
+    my $json = JSON->new;
+    $json->allow_nonref->utf8;
+    my %user_json = load_json($json, "data/users/$user.json");
+    my $room = $user_json{location};
+
+    my %room_json = load_json($json, "data/rooms/$room.json");
+    my $option = shift @command;
+    if (exists $command[0]) {
+        #modify option
+        my $str = join(" ", @command);
+        sswitch ($option) {
+            case 'name': { $room_json{name} = $str }
+            case 'desc': { $room_json{desc} = $str }
+            case 'map': { 
+                if ($command[0] eq 'add') {
+                    $room_json{map}{$command[1]} = $command[2];
+                } elsif ($command[0] eq 'del') {
+                    delete $room_json{map}{$command[1]};
+                } else {
+                    send_str($open[$ids{$user}], "unknown operation on map");
+                    return;
+                }
+            }
+            case 'objects': {
+                if (scalar(@command) < 2) {
+                    send_str($open[$ids{$user}], "not enough arguments");
+                }
+                my @objects = @{ $room_json{objects} };
+                if (scalar(@objects) == 0) {
+                    @objects = ();
+                }
+                if ($command[0] eq 'add') {
+                    if (-f "data/objects/$command[1].json") {
+                        push @objects, $command[1];
+                    } else {
+                        send_str($open[$ids{$user}], "that object doesn't exist");
+                        return
+                    }
+                } elsif ($command[0] eq 'del') {
+                    return if !grep( /^$command[1]$/, @objects );
+                    my $index = 0;
+                    $index++ until $objects[$index] eq $command[1] or $index > scalar(@objects);
+                    splice(@objects, $index, 1);
+                } else {
+                    send_str($open[$ids{$user}], "unknown operation on map");
+                    return;
+                }
+                $room_json{objects} = [ @objects ];
+            }
+        }
+        my $content = $json->encode(\%room_json);
+        $f->write_file(
+            'file' => "data/rooms/$room.json",
+            'content' => $content,
+            'bitmask' => 0644
+        );
+        say("EDIT: $room $option by $user to $command[1]");
+        send_str($open[$ids{$user}], "changed $option for room $room");
+        send_str($open[$ids{$user}], get_location($user));
+        look($ids{$user}, $user);
+    } else {
+        #return option value
+        send_str($open[$ids{$user}], Dumper($room_json{$option}));
+    }
+}
+
 sub login {
     my ($conn) = @_;
  
@@ -377,6 +450,7 @@ while (1) {
                         case 'look':  { look($i, $user) }
                         case 'tp':    { teleport($i, $user, $command[1]) }
                         case 'dig':   { dig($i, $user) }
+                        case 'edit':  { edit_room($user, @command) }
                         case 'list':  { 
                                         my $json = JSON->new;
                                         $json->allow_nonref->utf8;
