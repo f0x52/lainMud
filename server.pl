@@ -5,9 +5,6 @@ use strict;
 use warnings;
 use autodie;
  
-#use threads;
-#use threads::shared;
- 
 use IO::Socket::INET;
 use Time::HiRes qw(sleep ualarm);
 
@@ -226,6 +223,30 @@ sub teleport {
 
 }
 
+sub dig {
+    my ($i, $user) = @_;
+    my $room_count = $f->load_file("data/rooms/room_count");
+    $room_count++;
+    $room_count++ while (-f "data/rooms/$room_count.json");
+    
+    #because doing empty arrays/hashes is a pain
+    my $new_room = '{"users":[],"desc":"empty description","map":{},"name":"a brand new room","objects":[]}';
+
+    $f->write_file(
+        'file' => "data/rooms/$room_count.json",
+        'content' => $new_room,
+        'bitmask' => 0644
+    );
+
+    $f->write_file(
+        'file' => "data/rooms/room_count",
+        'content' => $room_count,
+        'bitmask' => 0644
+    );
+    say "DIG: $user dug $room_count";
+    send_str($open[$i], "Room created at #$room_count");
+}
+
 sub login {
     my ($conn) = @_;
  
@@ -352,10 +373,11 @@ while (1) {
                     #command
                     my @command = split / /, substr($message, 1);
                     sswitch ($command[0]) {
-                        case 'info': { send_str($open[$i], get_location($user)); }
-                        case 'look': { look($i, $user) }
-                        case 'tp':   { teleport($i, $user, $command[1]) }
-                        case 'list': { 
+                        case 'info':  { send_str($open[$i], get_location($user)); }
+                        case 'look':  { look($i, $user) }
+                        case 'tp':    { teleport($i, $user, $command[1]) }
+                        case 'dig':   { dig($i, $user) }
+                        case 'list':  { 
                                         my $json = JSON->new;
                                         $json->allow_nonref->utf8;
                                         my %user_json = load_json($json, "data/users/$user.json");
@@ -364,7 +386,7 @@ while (1) {
                                         my %room = load_json($json, "data/rooms/$location.json");
                                         my $presence = get_list($user, @{ $room{users} });
                                         send_str($open[$i], get_location($user) . "\n" . $presence);
-                                     }
+                                      }
                     }
                 } elsif (substr($message, 0, 1) eq ',') {
                     $message = substr($message, 1);
