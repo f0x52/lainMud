@@ -79,7 +79,7 @@ sub get_location {
 
     return color('bold') . $new_room{name} . " #$location" . color('reset') . "\n" .
            $new_room{desc} . "\n" .
-           "you see: " . join(" ," keys(%{ $new_room{objects} })) . "\n" .
+           "you see: " . join(", ", keys(%{ $new_room{objects} })) . "\n" .
            "you can go: ( " . join(" ", keys( %{ $new_room{map} } )) . " )\n" .
            $presence;
 
