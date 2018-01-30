@@ -57,8 +57,10 @@ sub recv_str {
 
 sub parse_directions {
     my ($str) = @_;
-    my @directions = $str =~ /\( (.+) \)/g;
-    my @direction_completions = split / /, @directions[0];
+    if ($str =~ m/you can go: /) {
+        my @directions = $str =~ /you can go: \( (.+) \)/g;
+        @direction_completions = split / /, @directions[0];
+    }
     $term->Attribs->{'completion_entry_function'} = sub {
         my ($word, $state) = @_;
         sswitch (substr($word, 0, 1)) {

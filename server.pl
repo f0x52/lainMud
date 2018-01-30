@@ -116,11 +116,11 @@ sub look {
     my %user_json = load_json($json, "data/users/$user.json");
     my $location = $user_json{location};
     my %room = load_json($json, "data/rooms/$location.json");
-    my @objects = @{ $room{objects} };
+    my %objects = %{ $room{objects} };
     my $str = color('bold') . "You see:\n" . color('reset');
-    foreach (@objects) {
-        my %object = load_json($json, "data/objects/$_.json");
-        $str .= $object{name} . " #$_\n";
+    foreach my $short (keys %objects) {
+        my %object = load_json($json, "data/objects/$objects{$short}.json");
+        $str .= $object{name} . " [$short] #$objects{$short}\n";
         $str .= "  " . $object{desc} . "\n";
     }
     send_str($open[$id], $str);
@@ -254,7 +254,7 @@ sub new {
     $object_count++ while (-f "data/objects/$object_count.json");
     
     #because doing empty arrays/hashes is a pain
-    my $new_object = '{"desc":"doesnt do much", "name":"a brand new object"}';
+    my $new_object = '{"desc":"doesnt do much", "name":"a brand new object", "short":"object_' . $object_count . '"}';
 
     $f->write_file(
         'file' => "data/objects/$object_count.json",
@@ -360,8 +360,9 @@ sub edit_object {
         #modify option
         my $str = join(" ", @command);
         sswitch ($option) {
-            case 'name': { $object_json{name} = $str }
-            case 'desc': { $object_json{desc} = $str }
+            case 'name':  { $object_json{name}  = $str }
+            case 'desc':  { $object_json{desc}  = $str }
+            case 'short': { $object_json{short} = $str }
         }
         my $content = $json->encode(\%object_json);
         $f->write_file(
@@ -375,6 +376,38 @@ sub edit_object {
     } else {
         #return option value
         send_str($open[$ids{$user}], Dumper($object_json{$option}));
+    }
+}
+
+sub interact {
+    my ($id, $user, $action, @command) = @_;
+    if (scalar(@command) > 0) {
+        my $object = shift @command;
+        my $json = JSON->new;
+        $json->allow_nonref->utf8;
+
+        my %user_json = load_json($json, "data/users/$user.json");
+        my $location = $user_json{location};
+
+        my %room_json = load_json($json, "data/rooms/$location.json");
+        if (exists($room_json{objects}{$object})) {
+            my %object_json = load_json($json, "data/objects/$room_json{objects}{$object}.json");
+            if (exists($object_json{actions}{$action})) {
+                my $str = "";
+                eval($object_json{actions}{$action});
+                if ($str ne "") {
+                    send_str($open[$id], $str);
+                }
+            } else {
+                send_str($open[$id], "you can't $action $object");
+            }
+        } else {
+            #can't find $object in room
+            send_str($open[$id], "you can't find $object");
+        }
+
+    } else {
+        send_str($open[$id], "what do you want to $action?");
     }
 }
 
@@ -535,6 +568,10 @@ while (1) {
                         move($i, $user, $_);
                         $output++;
                     }
+                } elsif (substr($message, 0, 1) eq '!') {
+                    my @command = split / /, substr($message, 1);
+                    my $action = shift @command;
+                    interact($i, $user, $action, @command);
                 } else { 
                     #global chat
                     broadcast($i, "[$user] $message");
