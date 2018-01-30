@@ -394,18 +394,22 @@ sub interact {
         if (exists($room_json{objects}{$object})) {
             my %object_json = load_json($json, "data/objects/$room_json{objects}{$object}.json");
             if (exists($object_json{actions}{$action})) {
-                my $str = "";
+                my $str   = "";
+                my $broad = "";
                 eval($object_json{actions}{$action});
 
                 my $content = $json->encode(\%object_json);
                 $f->write_file(
-                    'file' => "data/objects/$object.json",
+                    'file' => "data/objects/$room_json{objects}{$object}.json",
                     'content' => $content,
                     'bitmask' => 0644
                 );
 
                 if ($str ne "") {
                     send_str($open[$id], $str);
+                }
+                if ($broad ne "") {
+                    broadcast($id, $broad);
                 }
             } else {
                 send_str($open[$id], "you can't $action $object");
