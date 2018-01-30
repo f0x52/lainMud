@@ -140,51 +140,60 @@ sub move {
 
     if (exists($room{map}{$direction})) {
         #this is a valid $direction, move there
-        say "$user moved $direction";
-
-        my @current_users = @{ $room{users} };
-        my $index = 0;
-        $index++ until $current_users[$index] eq $user or $index > scalar(@current_users);
-        splice(@current_users, $index, 1);
-        $room{users} = [ @current_users ];
-
-        my $content = $json->encode(\%room);
-        my $f = File::Util->new;
-        
-        $f->write_file(
-            'file' => "data/rooms/$location.json",
-            'content' => $content,
-            'bitmask' => 0644
-        );
-
-        my $new_location = $room{map}{$direction};
-        $user_json{location} = $new_location;
-        $content = $json->encode(\%user_json);
-        
-        $f->write_file(
-            'file' => "data/users/$user.json",
-            'content' => $content,
-            'bitmask' => 0644
-        );
-
-        my %new_room = load_json($json, "data/rooms/$new_location.json");
-        my @new_room_users = @{ $new_room{users} };
-        push @new_room_users, $user;
-        $new_room{users} = [ @new_room_users ];
-        $content = $json->encode(\%new_room);
-        
-        $f->write_file(
-            'file' => "data/rooms/$new_location.json",
-            'content' => $content,
-            'bitmask' => 0644
-        );
-        send_str($open[$id], get_location($user));
-        roomtalk($location, $user, "$user left your room");
-        roomtalk($new_location, $user, "$user joined your room");
+        say "MOVE: $user moved $direction";
+        my $dest = $room{map}{$direction};
+        move_user($user, $location, $dest);
     } else {
         say "$user tried to move";
         send_str($open[$id], "you can't move there\n");
     }
+}
+
+sub move_user {
+    my ($user, $from, $dest) = @_;
+    my $json = JSON->new;
+    $json->allow_nonref->utf8;
+
+    my %room = load_json($json, "data/rooms/$from.json");
+    my @current_users = @{ $room{users} };
+    my $index = 0;
+    $index++ until $current_users[$index] eq $user or $index > scalar(@current_users);
+    splice(@current_users, $index, 1);
+    $room{users} = [ @current_users ];
+
+    my $content = $json->encode(\%room);
+    my $f = File::Util->new;
+    
+    $f->write_file(
+        'file' => "data/rooms/$from.json",
+        'content' => $content,
+        'bitmask' => 0644
+    );
+
+    my %user_json = load_json($json, "data/users/$user.json");
+    $user_json{location} = $dest;
+    $content = $json->encode(\%user_json);
+    
+    $f->write_file(
+        'file' => "data/users/$user.json",
+        'content' => $content,
+        'bitmask' => 0644
+    );
+
+    my %new_room = load_json($json, "data/rooms/$dest.json");
+    my @new_room_users = @{ $new_room{users} };
+    push @new_room_users, $user;
+    $new_room{users} = [ @new_room_users ];
+    $content = $json->encode(\%new_room);
+    
+    $f->write_file(
+        'file' => "data/rooms/$dest.json",
+        'content' => $content,
+        'bitmask' => 0644
+    );
+    send_str($open[$ids{$user}], get_location($user));
+    roomtalk($from, $user, "$user left your room");
+    roomtalk($dest, $user, "$user joined your room");
 }
 
 sub roomtalk {
@@ -200,6 +209,21 @@ sub roomtalk {
         }
     }
     print "ROOM: $room $msg\n";
+}
+
+sub teleport {
+    my ($i, $user, $dest) = @_;
+    my $json = JSON->new;
+    $json->allow_nonref->utf8;
+    my %user_json = load_json($json, "data/users/$user.json");
+    my $from = $user_json{location};
+    if (-f "data/rooms/$dest.json") {
+        #destination is a room
+        move_user($user, $from, $dest);
+    } else {
+        send_str($open[$i], "that's not a valid room\n");
+    }
+
 }
 
 sub login {
@@ -330,6 +354,7 @@ while (1) {
                     sswitch ($command[0]) {
                         case 'info': { send_str($open[$i], get_location($user)); }
                         case 'look': { look($i, $user) }
+                        case 'tp':   { teleport($i, $user, $command[1]) }
                         case 'list': { 
                                         my $json = JSON->new;
                                         $json->allow_nonref->utf8;
