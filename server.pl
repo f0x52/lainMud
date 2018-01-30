@@ -233,7 +233,7 @@ sub dig {
     $room_count++ while (-f "data/rooms/$room_count.json");
     
     #because doing empty arrays/hashes is a pain
-    my $new_room = '{"users":[],"desc":"empty description","map":{},"name":"a brand new room","objects":[]}';
+    my $new_room = '{"users":[],"desc":"empty description","map":{},"name":"a brand new room","objects":{}}';
 
     $f->write_file(
         'file' => "data/rooms/$room_count.json",
