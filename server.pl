@@ -52,6 +52,7 @@ sub load_json {
 
 sub send_str {
     my ($socket, $str) = @_;
+    return if !$socket->connected;
     my $pack = pack("L A*", length($str), $str);
     $socket->send($pack);
 }
@@ -310,7 +311,7 @@ sub edit_room {
             }
             case 'objects': {
                 if ($command[0] eq 'add') {
-                    if (-f "data/objects/$command[2]") {
+                    if (-f "data/objects/$command[2].json") {
                         $room_json{objects}{$command[1]} = $command[2];
                     } else {
                         send_str($open[$ids{$user}], "that object doesn't exist");
