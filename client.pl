@@ -24,7 +24,7 @@ my $cmds    : shared = "";
 my $prompt  : shared = "\001\r" . color('reset bold yellow') . "\002[$user] \001" . color('reset') . "\002";
                        #put \001, \002 around non-printing characters
 my $done    : shared = 0;
-my @commands = qw(look list info dig edit tp edit_o new);
+my @commands = qw(look list info dig edit tp edit_o new who me desc);
 my @colors   = qw(blue magenta yellow red green cyan);
 my @direction_completions;
 my %nick_colors;

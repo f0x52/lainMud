@@ -275,6 +275,61 @@ sub new {
     send_str($open[$i], "created object #$object_count");
 }
 
+sub edit_user {
+    my($user, @command) = @_;
+    shift @command;
+    if (scalar(@command) < 1) {
+        send_str($open[$ids{$user}], "not enough arguments");
+        return;
+    }
+    my $json = JSON->new;
+    $json->allow_nonref->utf8;
+    my %user_json = load_json($json, "data/users/$user.json");
+    $user_json{desc} = join(" ", @command);
+    my $content = $json->encode(\%user_json);
+    $f->write_file(
+        'file' => "data/users/$user.json",
+        'content' => $content,
+        'bitmask' => 0644
+    );
+    send_str($open[$ids{$user}], "changed your description to: " . join(" ", @command));
+}
+
+sub user_info {
+    my($user, @command) = @_;
+    shift @command;
+    my $target;
+    if (scalar(@command) < 1) {
+        $target = $user;
+    } else {
+        $target = shift @command;
+    }
+    my $json = JSON->new;
+    $json->allow_nonref->utf8;
+    if (-f "data/users/$target.json") {
+        my %user_json = load_json($json, "data/users/$target.json");
+        if (!exists($user_json{desc})) {
+            $user_json{desc} = "There's and air of mystery around $target";
+            my $content = $json->encode(\%user_json);
+            $f->write_file(
+                'file' => "data/users/$target.json",
+                'content' => $content,
+                'bitmask' => 0644
+            );
+        }
+        my %user_location = load_json($json, "data/rooms/$user_json{location}.json");
+        my $online = color('red') . "(offline)" . color('reset');
+        $online = color('green') . "(online)" . color('reset') if exists($ids{$target});
+        my $str = "";
+        $str .= color('bold') . $target . color('reset') . " $online\n";
+        $str .= "  location:    $user_location{name} #$user_json{location}\n";
+        $str .= "  description: $user_json{desc}\n";
+        send_str($open[$ids{$user}], $str);
+    } else {
+        send_str($open[$ids{$user}], "that user doesn't exist");
+    }
+}
+
 sub edit_room {
     my ($user, @command) = @_;
     shift @command;
@@ -466,7 +521,7 @@ sub login {
                     send_str($conn, "can't have a blank name");
                     next;
                 }
-                my $user_hash = {pass=>$hash, location=>0};
+                my $user_hash = {pass=>$hash, location=>0, desc=>"There's an air of mystery around $user"};
                 my $object = $json->encode($user_hash);
 
                 $f->write_file(
@@ -558,6 +613,8 @@ while (1) {
                         case 'edit':  { edit_room($user, @command) }
                         case 'edit_o':{ edit_object($user, @command) }
                         case 'me':    { shift @command; broadcast($i, "*$user " . join(" ", @command)) }
+                        case 'desc':  { edit_user($user, @command) }
+                        case 'who':   { user_info($user, @command) }
                         case 'list':  { 
                                         my $json = JSON->new;
                                         $json->allow_nonref->utf8;
