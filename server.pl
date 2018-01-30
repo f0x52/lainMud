@@ -295,7 +295,11 @@ sub edit_room {
             case 'desc': { $room_json{desc} = $str }
             case 'map': { 
                 if ($command[0] eq 'add') {
-                    $room_json{map}{$command[1]} = $command[2];
+                    if (-f "data/rooms/$command[2]") {
+                        $room_json{map}{$command[1]} = $command[2];
+                    } else {
+                        send_str($open[$ids{$user}], "that room doesn't exist");
+                    }
                 } elsif ($command[0] eq 'del') {
                     delete $room_json{map}{$command[1]};
                 } else {
@@ -305,7 +309,11 @@ sub edit_room {
             }
             case 'objects': {
                 if ($command[0] eq 'add') {
-                    $room_json{objects}{$command[1]} = $command[2];
+                    if (-f "data/objects/$command[2]") {
+                        $room_json{objects}{$command[1]} = $command[2];
+                    } else {
+                        send_str($open[$ids{$user}], "that object doesn't exist");
+                    }
                 } elsif ($command[0] eq 'del') {
                     delete $room_json{objects}{$command[1]};
                 } else {
