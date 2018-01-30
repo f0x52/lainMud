@@ -296,7 +296,7 @@ sub edit_room {
             case 'desc': { $room_json{desc} = $str }
             case 'map': { 
                 if ($command[0] eq 'add') {
-                    if (-f "data/rooms/$command[2]") {
+                    if (-f "data/rooms/$command[2].json") {
                         $room_json{map}{$command[1]} = $command[2];
                     } else {
                         send_str($open[$ids{$user}], "that room doesn't exist");
@@ -350,6 +350,11 @@ sub edit_object {
     my $json = JSON->new;
     $json->allow_nonref->utf8;
     my $object = shift @command;
+    
+    if (!-f "data/objects/$object.json") {
+        send_str($open[$ids{$user}], "that object doesn't exist");
+        return;
+    }
     my %object_json = load_json($json, "data/objects/$object.json");
     my $option = shift @command;
     if (exists $command[0]) {
