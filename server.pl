@@ -254,7 +254,7 @@ sub new {
     $object_count++ while (-f "data/objects/$object_count.json");
     
     #because doing empty arrays/hashes is a pain
-    my $new_object = '{"desc":"doesnt do much", "name":"a brand new object", "short":"object_' . $object_count . '"}';
+    my $new_object = '{"desc":"doesnt do much", "name":"a brand new object", "actions":{}}';
 
     $f->write_file(
         'file' => "data/objects/$object_count.json",
@@ -302,30 +302,15 @@ sub edit_room {
                 }
             }
             case 'objects': {
-                if (scalar(@command) < 2) {
-                    send_str($open[$ids{$user}], "not enough arguments");
-                }
-                my @objects = @{ $room_json{objects} };
-                if (scalar(@objects) == 0) {
-                    @objects = ();
-                }
                 if ($command[0] eq 'add') {
-                    if (-f "data/objects/$command[1].json") {
-                        push @objects, $command[1];
-                    } else {
-                        send_str($open[$ids{$user}], "that object doesn't exist");
-                        return
-                    }
+                    $room_json{objects}{$command[1]} = $command[2];
                 } elsif ($command[0] eq 'del') {
-                    return if !grep( /^$command[1]$/, @objects );
-                    my $index = 0;
-                    $index++ until $objects[$index] eq $command[1] or $index > scalar(@objects);
-                    splice(@objects, $index, 1);
+                    delete $room_json{objects}{$command[1]};
                 } else {
-                    send_str($open[$ids{$user}], "unknown operation on map");
+                    send_str($open[$ids{$user}], "unknown operation on objects");
                     return;
                 }
-                $room_json{objects} = [ @objects ];
+
             }
         }
         my $content = $json->encode(\%room_json);
@@ -362,7 +347,6 @@ sub edit_object {
         sswitch ($option) {
             case 'name':  { $object_json{name}  = $str }
             case 'desc':  { $object_json{desc}  = $str }
-            case 'short': { $object_json{short} = $str }
         }
         my $content = $json->encode(\%object_json);
         $f->write_file(
@@ -395,6 +379,14 @@ sub interact {
             if (exists($object_json{actions}{$action})) {
                 my $str = "";
                 eval($object_json{actions}{$action});
+
+                my $content = $json->encode(\%object_json);
+                $f->write_file(
+                    'file' => "data/objects/$object.json",
+                    'content' => $content,
+                    'bitmask' => 0644
+                );
+
                 if ($str ne "") {
                     send_str($open[$id], $str);
                 }
