@@ -158,6 +158,13 @@ sub listener {
 
         if ( $cmds ) {
             lock $cmds;
+            if (substr($cmds, 0, 6) eq "/clear") {
+                print `clear`;
+                print `clear`;
+                $term->forced_update_display;
+                $cmds = "";
+                next;
+            } 
             print $sock $cmds;
 
             if (substr($cmds, 0, 1) ne '/' && substr($cmds, 0, 1) ne '.') {
