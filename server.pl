@@ -557,6 +557,7 @@ while (1) {
                         case 'new':   { new($i, $user) }
                         case 'edit':  { edit_room($user, @command) }
                         case 'edit_o':{ edit_object($user, @command) }
+                        case 'me':    { shift @command; broadcast($i, "*$user " . join(" ", @command)) }
                         case 'list':  { 
                                         my $json = JSON->new;
                                         $json->allow_nonref->utf8;

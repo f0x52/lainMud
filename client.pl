@@ -167,18 +167,24 @@ sub listener {
             } 
             print $sock $cmds;
 
-            if (substr($cmds, 0, 1) ne '/' && substr($cmds, 0, 1) ne '.') {
+            if ((substr($cmds, 0, 1) ne '/' && substr($cmds, 0, 1) ne '.') or substr($cmds, 0, 3) eq '/me') {
                 my $cols = `tput cols`;
                 my $lines = ceil(length($cmds) / $cols);
                 print "\x1b[F \x1b[2K\r" x $lines; 
                     # \x1b[F = go 1 line up, \x1b[2K clears that line, 
                     # do this for the amount of lines writing the message took
+                if (substr($cmds, 0, 3) eq '/me') {
+                    print "*$user" . substr($cmds, 3);
+                    $term->forced_update_display;
+                    $cmds = "";
+                    next;
+                }
                 print "\001\r" . color('reset yellow') . "\002[$user]" . color('reset') . " " . $cmds;
             } elsif (substr($cmds, 0, 5) eq '/quit' or substr($cmds, 0, 5) eq '/exit') {
                 say "press enter to return to shell";
                 $done = 1;
                 return;
-            }
+            } 
             $term->forced_update_display;
             $cmds = "";
         }
