@@ -309,7 +309,7 @@ sub user_info {
     if (-f "data/users/$target.json") {
         my %user_json = load_json($json, "data/users/$target.json");
         if (!exists($user_json{desc})) {
-            $user_json{desc} = "There's and air of mystery around $target";
+            $user_json{desc} = "There's an air of mystery around $target";
             my $content = $json->encode(\%user_json);
             $f->write_file(
                 'file' => "data/users/$target.json",
