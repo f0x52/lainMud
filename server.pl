@@ -77,7 +77,7 @@ sub get_location {
 
     my $presence = get_list($user, @{ $new_room{users} });
 
-    return color('bold') . $new_room{name} . color('reset') . "\n" .
+    return color('bold') . $new_room{name} . " #$location" . color('reset') . "\n" .
            $new_room{desc} . "\n" .
            "you can go: ( " . join(" ", keys( %{ $new_room{map} } )) . " )\n" .
            $presence;
@@ -120,7 +120,7 @@ sub look {
     my $str = color('bold') . "You see:\n" . color('reset');
     foreach (@objects) {
         my %object = load_json($json, "data/objects/$_.json");
-        $str .= $object{name} . "\n";
+        $str .= $object{name} . " #$_\n";
         $str .= "  " . $object{desc} . "\n";
     }
     send_str($open[$id], $str);
