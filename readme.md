@@ -1,4 +1,4 @@
-![mudle](https://github.com/f0x52/mudle/raw/master/mudle.png "mudle")
+![mudle](https://f.0x52.eu/media/mudle.png "mudle")
 # mudle
 
 a simple combination of a server and client, communicating over tcp 4004  
