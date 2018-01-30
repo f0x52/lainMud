@@ -40,6 +40,7 @@ if(!-d "data/rooms") {
 
 sub load_json {
     my ($json, $path) = @_;
+    say "loading $path";
     my $json_str = do {
         open(my $json_fh, "<:encoding(UTF-8)", $path);
         local $/;
