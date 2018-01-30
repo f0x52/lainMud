@@ -199,7 +199,7 @@ sub roomtalk {
             send_str($open[$ids{$_}], "$msg\n");
         }
     }
-    
+    print "ROOM: $room $msg\n";
 }
 
 sub login {
@@ -252,6 +252,20 @@ sub login {
                     'content' => $object,
                     'bitmask' => 0644
                 );
+
+                my %new_room = load_json($json, "data/rooms/0.json");
+                my @new_room_users = @{ $new_room{users} };
+                push @new_room_users, $user;
+                $new_room{users} = [ @new_room_users ];
+                my $content = $json->encode(\%new_room);
+                
+                $f->write_file(
+                    'file' => "data/rooms/0.json",
+                    'content' => $content,
+                    'bitmask' => 0644
+                );
+                roomtalk(0, $user, "$user joined your room");
+
                 say $user . " register success";
                 $authenticated = 1;
             }
@@ -321,9 +335,10 @@ while (1) {
                                         $json->allow_nonref->utf8;
                                         my %user_json = load_json($json, "data/users/$user.json");
                                         my $location = $user_json{location};
+                                        say "$user is listing $location";
                                         my %room = load_json($json, "data/rooms/$location.json");
                                         my $presence = get_list($user, @{ $room{users} });
-                                        send_str($open[$i], $presence);
+                                        send_str($open[$i], get_location($user) . "\n" . $presence);
                                      }
                     }
                 } elsif (substr($message, 0, 1) eq ',') {
