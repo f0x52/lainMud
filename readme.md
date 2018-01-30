@@ -1,3 +1,4 @@
+![mudle](https://github.com/f0x52/mudle/raw/master/mudle.png "mudle")
 # mudle
 
 a simple combination of a server and client, communicating over tcp 4004  
@@ -9,7 +10,9 @@ design:
 
 # installation
 
-```perl -MCPAN -e shell
+```
+perl -MCPAN -e shell
 install Term::ANSIColor File::Util Digest::SHA Switch::Plain Data::Dumper JSON
 
-sudo aptitude install libterm-readline-gnu-perl```
+sudo aptitude install libterm-readline-gnu-perl
+```
