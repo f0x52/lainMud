@@ -79,6 +79,7 @@ sub get_location {
 
     return color('bold') . $new_room{name} . " #$location" . color('reset') . "\n" .
            $new_room{desc} . "\n" .
+           "you see: " . join(" ," keys(%{ $new_room{objects} })) . "\n" .
            "you can go: ( " . join(" ", keys( %{ $new_room{map} } )) . " )\n" .
            $presence;
 
@@ -544,7 +545,7 @@ while (1) {
                                         say "$user is listing $location";
                                         my %room = load_json($json, "data/rooms/$location.json");
                                         my $presence = get_list($user, @{ $room{users} });
-                                        send_str($open[$i], get_location($user) . "\n" . $presence);
+                                        send_str($open[$i], $presence);
                                       }
                     }
                 } elsif (substr($message, 0, 1) eq ',') {
