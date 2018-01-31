@@ -11,7 +11,7 @@ design:
 
 ```
 perl -MCPAN -e shell
-install Term::ANSIColor File::Util Digest::SHA Switch::Plain Data::Dumper JSON
+install Term::ANSIColor File::Util Digest::SHA Switch::Plain Data::Dumper JSON forks
 
 sudo aptitude install libterm-readline-gnu-perl
 ```
