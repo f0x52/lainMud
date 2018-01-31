@@ -1,5 +1,6 @@
 #!/usr/bin/env perl
 
+use forks;
 use 5.012;
 use strict;
 use warnings;
@@ -16,9 +17,6 @@ use JSON;
 use Switch::Plain;
 use Data::Dumper;
 
-use threads;
-use threads::shared;
- 
 my $HOST = "localhost";
 my $PORT = 4004;
 
@@ -52,6 +50,7 @@ sub load_json {
 
 sub send_str {
     my ($socket, $str) = @_;
+    return if !$socket;
     return if !$socket->connected;
     my $pack = pack("L A*", length($str), $str);
     $socket->send($pack);
@@ -75,14 +74,29 @@ sub get_location {
     $json->allow_nonref->utf8;
     my %user_json = load_json($json, "data/users/$user.json");
     my $location = $user_json{location};
-    my %new_room = load_json($json, "data/rooms/$location.json");
+    my %room = load_json($json, "data/rooms/$location.json");
 
-    my $presence = get_list($user, @{ $new_room{users} });
+    my $str = "";
+    foreach my $object (values( %{ $room{objects} })) {
+        my %object_json = load_json($json, "data/objects/$object.json");
+        if (exists($object_json{on_enter})) {
+            eval($object_json{on_enter});
 
-    return color('bold') . $new_room{name} . " #$location" . color('reset') . "\n" .
-           $new_room{desc} . "\n" .
-           "you see: " . join(", ", keys(%{ $new_room{objects} })) . "\n" .
-           "you can go: ( " . join(" ", keys( %{ $new_room{map} } )) . " )\n" .
+            my $content = $json->encode(\%object_json);
+            $f->write_file(
+                'file' => "data/objects/$object.json",
+                'content' => $content,
+                'bitmask' => 0644
+            );
+        }
+    }
+
+    my $presence = get_list($user, @{ $room{users} });
+
+    return color('bold') . $room{name} . " #$location" . color('reset') . "\n" .
+           $room{desc} . "\n" .
+           "you see: " . join(", ", keys(%{ $room{objects} })) . "\n" . $str .
+           "you can go: ( " . join(" ", keys( %{ $room{map} } )) . " )\n" .
            $presence;
 
 }
@@ -451,6 +465,7 @@ sub interact {
             if (exists($object_json{actions}{$action})) {
                 my $str   = "";
                 my $broad = "";
+                my $local = "";
                 eval($object_json{actions}{$action});
 
                 my $content = $json->encode(\%object_json);
@@ -465,6 +480,9 @@ sub interact {
                 }
                 if ($broad ne "") {
                     broadcast($id, $broad);
+                }
+                if ($local ne "") {
+                    roomtalk($location, '', $local);
                 }
             } else {
                 send_str($open[$id], "you can't $action $object");
@@ -573,7 +591,7 @@ my $server = IO::Socket::INET->new(
 
 local $| = 1;
 print "Listening on $HOST:$PORT\n";
- 
+my $tick = 0;
 while (1) {
     my ($conn) = $server->accept;
  
@@ -594,6 +612,50 @@ while (1) {
         };
  
         if ($@ eq "alarm\n") {
+            $tick++;
+            if ($tick > 120) { #tick every 60 sec when someone is connected
+                say "TICK";
+                my $json = JSON->new;
+                $json->allow_nonref->utf8;
+                my @rooms = <data/rooms/*.json>;
+                my %loop;
+                foreach my $room (@rooms) {
+                    my %room_json = load_json($json, $room);
+                    $room =~ m/(\d+).json/;
+                    my $roomid = $1;
+                    foreach (values(%{ $room_json{objects} })) {
+                        $loop{$_}++;
+                        my %object_json = load_json($json, "data/objects/$_.json");
+                        if (exists($object_json{on_tick})) {
+                            my $broad = "";
+                            my $local = "";
+                            eval($object_json{on_tick});
+
+                            my $content = $json->encode(\%object_json);
+                            $f->write_file(
+                                'file' => $_,
+                                'content' => $content,
+                                'bitmask' => 0644
+                            );
+
+                            if ($broad ne "") {
+                                broadcast(999999999, $broad);
+                            }
+                            if ($local ne "") {
+                                roomtalk($roomid, '', $local);
+                            }
+                        }
+                    }
+                    my $content = $json->encode(\%room_json);
+                    $f->write_file(
+                        'file' => $room,
+                        'content' => $content,
+                        'bitmask' => 0644
+                    );
+
+                }
+                $tick = 0;
+            }
             next;
         }
  
@@ -655,6 +717,8 @@ while (1) {
                 undef $open[$i];
             }
         }
+        
+
     }
  
     sleep(0.1);

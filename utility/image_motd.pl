@@ -31,7 +31,7 @@ sub color_lookup {
         case '178': {return $p.'magenta'}
         case '138': {return $p.'cyan'}
         case '0': {return $p.'black'}
-        default : { say $color; return $p.'black'}
+        default : { return $p.'black'}
     }
 }
 my $l = -1 * int(($h/2 - scalar(@lines)) /2);
