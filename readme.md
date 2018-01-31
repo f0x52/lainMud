@@ -18,7 +18,7 @@ sudo aptitude install libterm-readline-gnu-perl
 
 # utility
 In the `utility` folder you can find `image_motd.pl` which combines an image and a textual motd file  
-usage: `image_motd.pl image.png motd.txt > new_motd.txt`
+usage: `image_motd.pl image.png ../motd.txt > new_motd.txt`
 For the base image you have to use this palette:  
 red: `#cc6666`, green: `#b5bd68`, yellow: `#f0c674`, blue: `#81a2be`, magenta: `#b294bb`, cyan: `#8abeb7`.
 black, transparent and any other color will turn into your terminals background color.

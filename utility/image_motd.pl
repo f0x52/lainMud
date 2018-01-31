@@ -9,7 +9,7 @@ use Switch::Plain;
 use Term::ANSIColor;
 use File::Util;
 
-my ($img_path, $text_path) = @ARGV;
+my ($img_path, $text_path, $offset) = @ARGV;
 my $image = Image::Magick->new;
 my $x = $image->Read($img_path);
 my $f = File::Util->new;
@@ -18,6 +18,7 @@ my @lines = split /\n/, $text;
 
 my $h = $image->Get('height');
 my $w = $image->Get('width');
+$offset = 14 if !$offset;
 
 sub color_lookup {
     my ($p, @pixel) = @_;
@@ -44,7 +45,7 @@ for (my $y=0; $y<$h; $y=$y+2) {
         $row .= "▀"
     }
     $row .= color('reset');
-    $row .= " "x16 . $lines[$l] if $l > -1 && exists $lines[$l];
+    $row .= " "x$offset . $lines[$l] if $l > -1 && exists $lines[$l];
     say $row;
     $l++;
 }
