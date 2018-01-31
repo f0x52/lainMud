@@ -623,9 +623,10 @@ while (1) {
                     my %room_json = load_json($json, $room);
                     $room =~ m/(\d+).json/;
                     my $roomid = $1;
-                    foreach (values(%{ $room_json{objects} })) {
-                        $loop{$_}++;
-                        my %object_json = load_json($json, "data/objects/$_.json");
+                    foreach (keys(%{ $room_json{objects} })) {
+                        my $objectid = $room_json{objects}{$_};
+                        $loop{$objectid}++;
+                        my %object_json = load_json($json, "data/objects/$objectid.json");
                         if (exists($object_json{on_tick})) {
                             my $broad = "";
                             my $local = "";
@@ -633,7 +634,7 @@ while (1) {
 
                             my $content = $json->encode(\%object_json);
                             $f->write_file(
-                                'file' => $_,
+                                'file' => $objectid,
                                 'content' => $content,
                                 'bitmask' => 0644
                             );
