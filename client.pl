@@ -160,7 +160,7 @@ sub listener {
             lock $cmds;
             if (unpack("A*", $cmds) eq '') {
                 $cmds = "";
-                return;
+                next;
             } 
             if (substr($cmds, 0, 6) eq "/clear") {
                 print `clear`;

@@ -551,7 +551,7 @@ sub login {
     
     $users{$id} = $user;
     if (exists $ids{$user}) {
-        if ($ids{$user}) {
+        if ($open[$ids{$user}]) {
             send_str($open[$ids{$user}], "a new session was established\n");
             $open[$ids{$user}]->close;
         }
