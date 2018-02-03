@@ -1,13 +1,15 @@
-#!/usr/bin/env perl
+#!/usr/bin/perl
 
-use forks;
-use 5.012;
 use strict;
 use warnings;
+use diagnostics;
 use autodie;
- 
-use IO::Socket::INET;
-use Time::HiRes qw(sleep ualarm);
+use 5.24.0;
+use IO::Async::Stream;
+use IO::Async::Loop;
+use IO::Async::Timer::Periodic;
+use Socket qw( SOCK_STREAM );
+use Data::Dumper;
 
 use Term::ANSIColor;
 use File::Util;
@@ -15,18 +17,13 @@ use Digest::SHA qw(sha256_hex);
 use File::Path qw(make_path);
 use JSON;
 use Switch::Plain;
-use Data::Dumper;
-
-my $HOST = "localhost";
-my $PORT = 4004;
 
 my $f = File::Util->new;
 my $motd = $f->load_file('motd.txt');
  
 my @open;
-
-my %users : shared;
-my %ids : shared;
+my %users;
+my %ids;
 
 if(!-d "data/users") {
     make_path("data/users");
@@ -51,9 +48,8 @@ sub load_json {
 sub send_str {
     my ($socket, $str) = @_;
     return if !$socket;
-    return if !$socket->connected;
     my $pack = pack("L A*", length($str), $str);
-    $socket->send($pack);
+    $socket->write($pack);
 }
 
 sub broadcast {
@@ -498,229 +494,214 @@ sub interact {
 }
 
 sub login {
-    my ($conn) = @_;
- 
+    my ($conn, $auth_str) = @_;
     state $id = 0;
-
-    # TODO: better error handling, so server doesn't crash
-    threads->new(
-    sub {
-        while (1) {
-            my $f = File::Util->new;
-            $conn->recv(my $auth_str, 1024, 0);
-            $auth_str = unpack('A*', $auth_str);
-            my @auth = split / /, $auth_str;
-            if(scalar(@auth) != 3) {
-                $conn->send("please login with \"login user password\"");
-                next;
-            }
-
-            my $user     = $f->escape_filename($auth[1]);
-            my $password = $auth[2];
-            my $hash     = sha256_hex($password);
-
-            my $path = "data/users/" . $user . ".json";
-
-            my $json = JSON->new;
-            $json->allow_nonref->utf8;
-            my $authenticated = 0;
-            if (-f $path) { #user.json exists
-                my %j_data = load_json($json, $path);
-
-                if ($hash eq $j_data{pass}) {
-                    say $user . " login success";
-                    $authenticated = 1;
-                } else {
-                    $conn->send("wrong password");
-                    next;
-                }
-            } else {
-                if ($user eq '') {
-                    send_str($conn, "can't have a blank name");
-                    next;
-                }
-                my $user_hash = {pass=>$hash, location=>0, desc=>"There's an air of mystery around $user"};
-                my $object = $json->encode($user_hash);
-
-                $f->write_file(
-                    'file' => $path,
-                    'content' => $object,
-                    'bitmask' => 0644
-                );
-
-                my %new_room = load_json($json, "data/rooms/0.json");
-                my @new_room_users = @{ $new_room{users} };
-                push @new_room_users, $user;
-                $new_room{users} = [ @new_room_users ];
-                my $content = $json->encode(\%new_room);
-                
-                $f->write_file(
-                    'file' => "data/rooms/0.json",
-                    'content' => $content,
-                    'bitmask' => 0644
-                );
-                roomtalk(0, $user, "$user joined your room");
-
-                say $user . " register success";
-                $authenticated = 1;
-            }
-            
-            next if !$authenticated;
-            $users{$id} = $user;
-            $ids{$user} = $id;
-            broadcast($id, "+++ $user arrived +++");
-
-            send_str($conn, "success".$motd . "\n\n".get_location($user));
-            last;
-        }
-    });
-    ++$id;
-    push @open, $conn;
-}
- 
-my $server = IO::Socket::INET->new(
-                                   Timeout   => 0,
-                                   LocalPort => $PORT,
-                                   Proto     => "tcp",
-                                   LocalAddr => $HOST,
-                                   Blocking  => 0,
-                                   Listen    => 1,
-                                   Reuse     => 1,
-                                  );
- 
-
-local $| = 1;
-print "Listening on $HOST:$PORT\n";
-my $tick = 0;
-while (1) {
-    my ($conn) = $server->accept;
- 
-    if (defined($conn)) {
-        login $conn;
+    my @auth = split / /, $auth_str;
+    if(scalar(@auth) != 3) {
+        $conn->write("please login with \"login user password\"");
+        return 0;
     }
- 
-    foreach my $i (keys %users) {
- 
-        my $conn = $open[$i];
-        my $message;
- 
-        eval {
-            local $SIG{ALRM} = sub { die "alarm\n" };
-            ualarm(500);
-            $conn->recv($message, 1024, 0);
-            ualarm(0);
-        };
- 
-        if ($@ eq "alarm\n") {
-            $tick++;
-            if ($tick > 120) { #tick every 60 sec when someone is connected
-                say "TICK";
-                my $json = JSON->new;
-                $json->allow_nonref->utf8;
-                my @rooms = <data/rooms/*.json>;
-                my %loop;
-                foreach my $room (@rooms) {
-                    my %room_json = load_json($json, $room);
-                    $room =~ m/(\d+).json/;
-                    my $roomid = $1;
-                    foreach (keys(%{ $room_json{objects} })) {
-                        my $objectid = $room_json{objects}{$_};
-                        $loop{$objectid}++;
-                        my %object_json = load_json($json, "data/objects/$objectid.json");
-                        if (exists($object_json{on_tick})) {
-                            my $broad = "";
-                            my $local = "";
-                            eval($object_json{on_tick});
 
-                            my $content = $json->encode(\%object_json);
-                            $f->write_file(
-                                'file' => $objectid,
-                                'content' => $content,
-                                'bitmask' => 0644
-                            );
+    my $user     = $f->escape_filename($auth[1]);
+    my $password = $auth[2];
+    my $hash     = sha256_hex($password);
 
-                            if ($broad ne "") {
-                                broadcast(999999999, $broad);
+    my $path = "data/users/" . $user . ".json";
+
+    my $json = JSON->new;
+    $json->allow_nonref->utf8;
+    if (-f $path) { #user.json exists
+        my %j_data = load_json($json, $path);
+
+        if ($hash eq $j_data{pass}) {
+            say $user . " login success";
+        } else {
+            $conn->write("wrong password");
+            return 0;
+        }
+    } else {
+        if ($user eq '') {
+            send_str($conn, "can't have a blank name");
+            return 0;
+        }
+        my $user_hash = {pass=>$hash, location=>0, desc=>"There's an air of mystery around $user"};
+        my $object = $json->encode($user_hash);
+
+        $f->write_file(
+            'file' => $path,
+            'content' => $object,
+            'bitmask' => 0644
+        );
+
+        my %new_room = load_json($json, "data/rooms/0.json");
+        my @new_room_users = @{ $new_room{users} };
+        push @new_room_users, $user;
+        $new_room{users} = [ @new_room_users ];
+        my $content = $json->encode(\%new_room);
+        
+        $f->write_file(
+            'file' => "data/rooms/0.json",
+            'content' => $content,
+            'bitmask' => 0644
+        );
+        roomtalk(0, $user, "$user joined your room");
+
+        say $user . " register success";
+    }
+    
+    $users{$id} = $user;
+    if (exists $ids{$user}) {
+        send_str($open[$ids{$user}], "a new session was established\n");
+        $open[$ids{$user}]->close;
+    }
+    $ids{$user} = $id;
+    broadcast($id, "+++ $user arrived +++");
+
+    send_str($conn, "success".$motd . "\n\n".get_location($user));
+    $id++;
+    return (1, $user);
+}
+
+my $loop = IO::Async::Loop->new();
+$loop->listen(
+    service   => 4004,
+    socktype  => SOCK_STREAM,
+    queuesize => 5,
+    reuseaddr => 1,
+
+    on_accept => sub {
+        my ( $newclient ) = @_;
+        push @open, $newclient;
+        my $loggedin = 0;
+
+        $loop->add(
+            IO::Async::Stream->new(
+                handle => $newclient,
+                autoflush => 1,
+                on_read => sub {
+                    my ($conn, $buffref, $closed ) = @_;
+                    my $message = unpack("A*", $$buffref);
+                    state $user = "";
+                    $$buffref = '';
+                    my $username = "";
+                    if (!$loggedin) {
+                        ($loggedin, $user) = login($conn, $message);
+                        return 0;
+                    }
+                    return 0 if !$loggedin;
+                    my $i = $ids{$user};
+                    say "-- $user --";
+                    if ($message ne '') {
+                        if (substr($message, 0, 1) eq '/') {
+                            #command
+                            my @command = split / /, substr($message, 1);
+                            sswitch ($command[0]) {
+                                case 'info':  { send_str($open[$i], get_location($user)); }
+                                case 'look':  { look($i, $user) }
+                                case 'tp':    { teleport($i, $user, $command[1]) }
+                                case 'dig':   { dig($i, $user) }
+                                case 'new':   { new($i, $user) }
+                                case 'edit':  { edit_room($user, @command) }
+                                case 'edit_o':{ edit_object($user, @command) }
+                                case 'me':    { shift @command; broadcast($i, "*$user " . join(" ", @command)) }
+                                case 'desc':  { edit_user($user, @command) }
+                                case 'who':   { user_info($user, @command) }
+                                case 'list':  { 
+                                                my $json = JSON->new;
+                                                $json->allow_nonref->utf8;
+                                                my %user_json = load_json($json, "data/users/$user.json");
+                                                my $location = $user_json{location};
+                                                say "$user is listing $location";
+                                                my %room = load_json($json, "data/rooms/$location.json");
+                                                my $presence = get_list($user, @{ $room{users} });
+                                                send_str($open[$i], $presence);
+                                              }
                             }
-                            if ($local ne "") {
-                                roomtalk($roomid, '', $local);
+                        } elsif (substr($message, 0, 1) eq ',') {
+                            $message = substr($message, 1);
+                            my $json = JSON->new;
+                            $json->allow_nonref->utf8;
+                            my %room = load_json($json, "data/users/" . $user . ".json");
+                            roomtalk($room{location}, $user, "[$user] $message");
+                        } elsif (substr($message, 0, 1) eq '.') {
+                            my @command = split / /, substr($message, 1);
+                            my $output = 0; 
+                            foreach (@command) {
+                                move($i, $user, $_);
+                                $output++;
                             }
+                        } elsif (substr($message, 0, 1) eq '!') {
+                            my @command = split / /, substr($message, 1);
+                            my $action = shift @command;
+                            interact($i, $user, $action, @command);
+                        } else { 
+                            #global chat
+                            broadcast($i, "[$user] $message");
                         }
                     }
-                    my $content = $json->encode(\%room_json);
-                    $f->write_file(
-                        'file' => $room,
-                        'content' => $content,
-                        'bitmask' => 0644
-                    );
-
-                }
-                $tick = 0;
-            }
-            next;
-        }
- 
-        if (defined($message)) {
-            my $user = $users{$i};
-            if ($message ne '') {
-                $message = unpack('A*', $message);
-                if (substr($message, 0, 1) eq '/') {
-                    #command
-                    my @command = split / /, substr($message, 1);
-                    sswitch ($command[0]) {
-                        case 'info':  { send_str($open[$i], get_location($user)); }
-                        case 'look':  { look($i, $user) }
-                        case 'tp':    { teleport($i, $user, $command[1]) }
-                        case 'dig':   { dig($i, $user) }
-                        case 'new':   { new($i, $user) }
-                        case 'edit':  { edit_room($user, @command) }
-                        case 'edit_o':{ edit_object($user, @command) }
-                        case 'me':    { shift @command; broadcast($i, "*$user " . join(" ", @command)) }
-                        case 'desc':  { edit_user($user, @command) }
-                        case 'who':   { user_info($user, @command) }
-                        case 'list':  { 
-                                        my $json = JSON->new;
-                                        $json->allow_nonref->utf8;
-                                        my %user_json = load_json($json, "data/users/$user.json");
-                                        my $location = $user_json{location};
-                                        say "$user is listing $location";
-                                        my %room = load_json($json, "data/rooms/$location.json");
-                                        my $presence = get_list($user, @{ $room{users} });
-                                        send_str($open[$i], $presence);
-                                      }
+                    else {
+                        broadcast($i, "--- $user leaves ---");
+                        delete $users{$i};
+                        delete $ids{$i};
+                        undef $open[$i];
                     }
-                } elsif (substr($message, 0, 1) eq ',') {
-                    $message = substr($message, 1);
-                    my $json = JSON->new;
-                    $json->allow_nonref->utf8;
-                    my %room = load_json($json, "data/users/" . $user . ".json");
-                    roomtalk($room{location}, $user, "[$user] $message");
-                } elsif (substr($message, 0, 1) eq '.') {
-                    my @command = split / /, substr($message, 1);
-                    my $output = 0; 
-                    foreach (@command) {
-                        move($i, $user, $_);
-                        $output++;
-                    }
-                } elsif (substr($message, 0, 1) eq '!') {
-                    my @command = split / /, substr($message, 1);
-                    my $action = shift @command;
-                    interact($i, $user, $action, @command);
-                } else { 
-                    #global chat
-                    broadcast($i, "[$user] $message");
-                }
-            }
-            else {
-                broadcast($i, "--- $user leaves ---");
-                delete $users{$i};
-                delete $ids{$i};
-                undef $open[$i];
-            }
-        }
-        
+                    return 0;
+                },
+            ),
+        );
+    },
+    on_resolve_error => sub { print STDERR "Cannot resolve - $_[0]\n"; },
+    on_listen_error  => sub { print STDERR "Cannot listen\n"; },
+);
 
-    }
- 
-    sleep(0.1);
-}
+my $timer = IO::Async::Timer::Periodic->new(
+   interval => 120,
+   on_tick => sub {
+       say "TICK";
+       my $json = JSON->new;
+       $json->allow_nonref->utf8;
+       my @rooms = <data/rooms/*.json>;
+       foreach my $room (@rooms) {
+           my %room_json = load_json($json, $room);
+           $room =~ m/(\d+).json/;
+           my $roomid = $1;
+           foreach (keys(%{ $room_json{objects} })) {
+               my $objectid = $room_json{objects}{$_};
+               my %object_json = load_json($json, "data/objects/$objectid.json");
+               if (exists($object_json{on_tick})) {
+                   my $broad = "";
+                   my $local = "";
+                   eval($object_json{on_tick});
+
+                   my $content = $json->encode(\%object_json);
+                   $f->write_file(
+                       'file' => $objectid,
+                       'content' => $content,
+                       'bitmask' => 0644
+                   );
+
+                   if ($broad ne "") {
+                       broadcast(999999999, $broad);
+                   }
+                   if ($local ne "") {
+                       roomtalk($roomid, '', $local);
+                   }
+               }
+           }
+           my $content = $json->encode(\%room_json);
+           $f->write_file(
+               'file' => $room,
+               'content' => $content,
+               'bitmask' => 0644
+           );
+
+       }
+   },
+);
+
+say "listening on port 4004";
+$timer->start;
+$loop->add($timer);
+
+$loop->loop_forever();
+
