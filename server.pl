@@ -657,48 +657,48 @@ $loop->listen(
 );
 
 my $timer = IO::Async::Timer::Periodic->new(
-   interval => 120,
-   on_tick => sub {
-       say "TICK";
-       my $json = JSON->new;
-       $json->allow_nonref->utf8;
-       my @rooms = <data/rooms/*.json>;
-       foreach my $room (@rooms) {
-           my %room_json = load_json($json, $room);
-           $room =~ m/(\d+).json/;
-           my $roomid = $1;
-           foreach (keys(%{ $room_json{objects} })) {
-               my $objectid = $room_json{objects}{$_};
-               my %object_json = load_json($json, "data/objects/$objectid.json");
-               if (exists($object_json{on_tick})) {
-                   my $broad = "";
-                   my $local = "";
-                   eval($object_json{on_tick});
-
-                   my $content = $json->encode(\%object_json);
-                   $f->write_file(
-                       'file' => $objectid,
-                       'content' => $content,
-                       'bitmask' => 0644
-                   );
-
-                   if ($broad ne "") {
-                       broadcast(999999999, $broad);
-                   }
-                   if ($local ne "") {
-                       roomtalk($roomid, '', $local);
-                   }
-               }
-           }
-           my $content = $json->encode(\%room_json);
-           $f->write_file(
-               'file' => $room,
-               'content' => $content,
-               'bitmask' => 0644
-           );
-
-       }
-   },
+    interval => 120,
+    on_tick => sub {
+        say "TICK";
+        my $json = JSON->new;
+        $json->allow_nonref->utf8;
+        my @rooms = <data/rooms/*.json>;
+        foreach my $room (@rooms) {
+            my %room_json = load_json($json, $room);
+            $room =~ m/(\d+).json/;
+            my $roomid = $1;
+            foreach (keys(%{ $room_json{objects} })) {
+                my $objectid = $room_json{objects}{$_};
+                my %object_json = load_json($json, "data/objects/$objectid.json");
+                if (exists($object_json{on_tick})) {
+                    my $broad = "";
+                    my $local = "";
+                    eval($object_json{on_tick});
+    
+                    my $content = $json->encode(\%object_json);
+                    $f->write_file(
+                        'file' => "data/objects/$objectid.json",
+                        'content' => $content,
+                        'bitmask' => 0644
+                    );
+    
+                    if ($broad ne "") {
+                        broadcast(999999999, $broad);
+                    }
+                    if ($local ne "") {
+                        roomtalk($roomid, '', $local);
+                    }
+                }
+            }
+            my $content = $json->encode(\%room_json);
+            $f->write_file(
+                'file' => $room,
+                'content' => $content,
+                'bitmask' => 0644
+            );
+    
+        }
+    },
 );
 
 say "listening on port 4004";
