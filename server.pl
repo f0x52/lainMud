@@ -551,8 +551,10 @@ sub login {
     
     $users{$id} = $user;
     if (exists $ids{$user}) {
-        send_str($open[$ids{$user}], "a new session was established\n");
-        $open[$ids{$user}]->close;
+        if ($ids{$user}) {
+            send_str($open[$ids{$user}], "a new session was established\n");
+            $open[$ids{$user}]->close;
+        }
     }
     $ids{$user} = $id;
     broadcast($id, "+++ $user arrived +++");
